@@ -12,27 +12,28 @@ services:
       - development
       - production
 
-  orchestrator:
+  api-server:
     build:
       context: ..
-      dockerfile: docker/Dockerfile.orchestrator
+      dockerfile: docker/Dockerfile.api-server
     ports:
       - "3000:3000"
     environment:
       - DATABASE_URL=ws://surrealdb:8000
       - API_PORT=3000
     volumes:
-      - ../orchestrator:/app
-    command: cargo run
+      - ../api-server:/app/api-server
+      - ../engine:/app/engine
+    command: cargo run --bin api-server
     depends_on:
       - surrealdb
     profiles:
       - development
 
-  orchestrator-prod:
+  api-server-prod:
     build:
       context: ..
-      dockerfile: docker/Dockerfile.orchestrator
+      dockerfile: docker/Dockerfile.api-server
     ports:
       - "3000:3000"
     environment:
@@ -51,25 +52,26 @@ services:
     ports:
       - "3001:3000"
     environment:
-      - NEXT_PUBLIC_API_URL=http://orchestrator:3000
+      - NEXT_PUBLIC_API_URL=http://api-server:3000
     depends_on:
-      - orchestrator
+      - api-server
     volumes:
       - ../dashboard:/app
       - /app/node_modules
+    command: pnpm dev
     profiles:
       - development
 
   dashboard-prod:
     build:
       context: ../dashboard
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.prod
     ports:
       - "3001:3000"
     environment:
-      - NEXT_PUBLIC_API_URL=http://orchestrator-prod:3000
+      - NEXT_PUBLIC_API_URL=http://api-server-prod:3000
     restart: unless-stopped
     depends_on:
-      - orchestrator-prod
+      - api-server-prod
     profiles:
       - production

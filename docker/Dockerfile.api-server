@@ -1,0 +1,57 @@
+# Multi-stage build for Rust API server
+FROM rust:latest as builder
+
+# Install build dependencies
+RUN apt-get update && apt-get install -y \
+    pkg-config \
+    libssl-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# Set working directory
+WORKDIR /app
+
+# Copy workspace files
+COPY Cargo.toml ./
+COPY engine/Cargo.toml ./engine/
+COPY api-server/Cargo.toml ./api-server/
+
+# Copy Cargo.lock if it exists
+COPY Cargo.lock* ./
+
+# Create dummy sources to build dependencies (for caching)
+RUN mkdir -p engine/src api-server/src && \
+    echo "pub fn dummy() {}" > engine/src/lib.rs && \
+    echo "fn main() {}" > api-server/src/main.rs && \
+    cargo build --release --bin api-server 2>/dev/null || true && \
+    rm -rf engine/src api-server/src
+
+# Copy actual source code
+COPY engine ./engine
+COPY api-server ./api-server
+
+# Build the actual application
+RUN cargo build --release --bin api-server
+
+# Development/Runtime stage - includes Rust for development mode
+FROM rust:latest
+
+# Install runtime dependencies
+RUN apt-get update && apt-get install -y \
+    ca-certificates \
+    libssl3 \
+    pkg-config \
+    libssl-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy binary from builder (for production)
+COPY --from=builder /app/target/release/api-server /usr/local/bin/api-server
+
+# Set working directory
+WORKDIR /app
+
+# Expose port
+EXPOSE 3000
+
+# Default command (for production)
+# For development, docker-compose overrides this with "cargo run --bin api-server"
+CMD ["api-server"]

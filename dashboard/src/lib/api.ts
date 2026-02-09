@@ -14,6 +14,8 @@ export interface Agent {
   name: string;
   role: 'master' | 'slave';
   status: 'pending' | 'deploying' | 'running' | 'stopped' | 'error';
+  responsibility?: string;
+  emoji?: string;
 }
 
 export interface CreateAgentRequest {
@@ -28,6 +30,8 @@ export interface CreateAgentRequest {
   model_endpoint?: string;
   personality?: string;
   skills: string[];
+  responsibility?: string;
+  emoji?: string;
 }
 
 export interface Team {
@@ -74,4 +78,24 @@ export const api = {
     const response = await client.post<Team>('/api/teams', data);
     return response.data;
   },
+
+  async getTeamRoster(teamId: string): Promise<TeamRosterResponse> {
+    const response = await client.get<TeamRosterResponse>(`/api/teams/${teamId}/roster`);
+    return response.data;
+  },
 };
+
+export interface TeamRosterMember {
+  id: string;
+  name: string;
+  role: string;
+  responsibility: string;
+  emoji: string;
+  status: 'pending' | 'deploying' | 'running' | 'stopped' | 'error';
+}
+
+export interface TeamRosterResponse {
+  team_id: string;
+  team_name: string;
+  members: TeamRosterMember[];
+}

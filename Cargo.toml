@@ -1,5 +1,5 @@
 [workspace]
-members = ["orchestrator"]
+members = ["engine", "api-server"]
 resolver = "2"
 
 [workspace.package]

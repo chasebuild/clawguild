@@ -8,6 +8,8 @@ interface AgentCardProps {
     name: string;
     role: 'master' | 'slave';
     status: 'pending' | 'deploying' | 'running' | 'stopped' | 'error';
+    responsibility?: string;
+    emoji?: string;
   };
 }
 
@@ -19,10 +21,16 @@ export function AgentCard({ agent }: AgentCardProps) {
         <StatusIndicator status={agent.status} />
       </div>
       <div className="space-y-2">
+        {agent.emoji && (
+          <div className="text-2xl mb-2">{agent.emoji}</div>
+        )}
         <div className="flex items-center gap-2">
           <span className="text-sm text-muted-foreground">Role:</span>
           <span className="text-sm font-medium capitalize">{agent.role}</span>
         </div>
+        {agent.responsibility && (
+          <p className="text-sm text-muted-foreground">{agent.responsibility}</p>
+        )}
         <div className="flex items-center gap-2">
           <span className="text-sm text-muted-foreground">Status:</span>
           <span className="text-sm font-medium capitalize">{agent.status}</span>

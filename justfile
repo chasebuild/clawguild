@@ -47,54 +47,63 @@ docker-logs:
 docker-logs-prod:
     cd docker && docker compose --profile production logs -f
 
-# Start the orchestrator service
-orchestrator:
-    @echo "Starting orchestrator..."
-    cd orchestrator && cargo run
+# Start the API server
+api-server:
+    @echo "Starting API server..."
+    cd api-server && cargo run
 
 # Start the dashboard
 dashboard:
     @echo "Starting dashboard..."
     cd dashboard && pnpm dev
 
-# Start both orchestrator and dashboard (in parallel)
+# Start both API server and dashboard (in parallel)
 dev: up
     @echo "Starting development environment..."
-    just --jobs 2 orchestrator dashboard
+    just --jobs 2 api-server dashboard
 
-# Build the orchestrator
-build-orchestrator:
-    cd orchestrator && cargo build --release
+# Build the API server
+build-api-server:
+    cd api-server && cargo build --release
+
+# Build the engine library
+build-engine:
+    cd engine && cargo build --release
 
 # Build the dashboard
 build-dashboard:
     cd dashboard && pnpm build
 
 # Build everything
-build: build-orchestrator build-dashboard
+build: build-engine build-api-server build-dashboard
 
 # Run tests
 test:
-    cd orchestrator && cargo test
+    cd engine && cargo test
+    cd api-server && cargo test
 
 # Run linter
 lint:
-    cd orchestrator && cargo clippy -- -D warnings
+    cd engine && cargo clippy -- -D warnings
+    cd api-server && cargo clippy -- -D warnings
     cd dashboard && pnpm lint
 
 # Format code
 format:
-    cd orchestrator && cargo fmt
+    cd engine && cargo fmt
+    cd api-server && cargo fmt
     cd dashboard && pnpm format || true
 
 # Clean build artifacts
 clean:
-    cd orchestrator && cargo clean
+    cd engine && cargo clean
+    cd api-server && cargo clean
     cd dashboard && rm -rf .next out dist
 
 # Check code (compile without building)
 check:
-    cd orchestrator && cargo check
+    cd engine && cargo check
+    cd api-server && cargo check
     cd dashboard && pnpm type-check || true
 
 # Setup project (install dependencies and prepare environment)
@@ -103,5 +112,5 @@ setup: install
     @echo "Make sure to:"
     @echo "1. Copy .env.example to .env and configure it"
     @echo "2. Start services: just up (or cd docker && docker compose up -d)"
-    @echo "3. Run the orchestrator: just orchestrator"
+    @echo "3. Run the API server: just api-server"
     @echo "4. Run the dashboard: just dashboard"
