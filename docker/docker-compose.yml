@@ -1,6 +1,17 @@
-version: '3.8'
+version: "3.8"
 
 services:
+  surrealdb:
+    image: surrealdb/surrealdb:latest
+    container_name: surrealdb
+    ports:
+      - "8000:8000"
+    command: start --log trace --user root --pass root memory
+    restart: unless-stopped
+    profiles:
+      - development
+      - production
+
   orchestrator:
     build:
       context: ..
@@ -8,11 +19,30 @@ services:
     ports:
       - "3000:3000"
     environment:
-      - DATABASE_URL=sqlite:./clawguild.db
+      - DATABASE_URL=ws://surrealdb:8000
       - API_PORT=3000
     volumes:
       - ../orchestrator:/app
     command: cargo run
+    depends_on:
+      - surrealdb
+    profiles:
+      - development
+
+  orchestrator-prod:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.orchestrator
+    ports:
+      - "3000:3000"
+    environment:
+      - DATABASE_URL=ws://surrealdb:8000
+      - API_PORT=3000
+    restart: unless-stopped
+    depends_on:
+      - surrealdb
+    profiles:
+      - production
 
   dashboard:
     build:
@@ -24,3 +54,22 @@ services:
       - NEXT_PUBLIC_API_URL=http://orchestrator:3000
     depends_on:
       - orchestrator
+    volumes:
+      - ../dashboard:/app
+      - /app/node_modules
+    profiles:
+      - development
+
+  dashboard-prod:
+    build:
+      context: ../dashboard
+      dockerfile: Dockerfile
+    ports:
+      - "3001:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://orchestrator-prod:3000
+    restart: unless-stopped
+    depends_on:
+      - orchestrator-prod
+    profiles:
+      - production

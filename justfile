@@ -19,19 +19,33 @@ install: install-rust install-frontend
 migrate:
     @echo "Migrations run automatically on startup"
 
-# Start SurrealDB (requires Docker)
+# Start SurrealDB (requires Docker Compose)
 db-start:
-    docker run -d -p 8000:8000 --name surrealdb \
-        surrealdb/surrealdb:latest start \
-        --log trace \
-        --user root \
-        --pass root \
-        memory
+    cd docker && docker compose --profile development up -d surrealdb
 
 # Stop SurrealDB
 db-stop:
-    docker stop surrealdb || true
-    docker rm surrealdb || true
+    cd docker && docker compose stop surrealdb
+
+# Start all development services (SurrealDB, orchestrator, dashboard)
+up:
+    cd docker && docker compose --profile development up -d
+
+# Start production services
+up-prod:
+    cd docker && docker compose --profile production up -d
+
+# Stop all services
+docker-down:
+    cd docker && docker compose down
+
+# View logs for development services
+docker-logs:
+    cd docker && docker compose --profile development logs -f
+
+# View logs for production services
+docker-logs-prod:
+    cd docker && docker compose --profile production logs -f
 
 # Start the orchestrator service
 orchestrator:
@@ -44,7 +58,7 @@ dashboard:
     cd dashboard && pnpm dev
 
 # Start both orchestrator and dashboard (in parallel)
-dev: db-start
+dev: up
     @echo "Starting development environment..."
     just --jobs 2 orchestrator dashboard
 
@@ -88,6 +102,6 @@ setup: install
     @echo "Setting up ClawGuild..."
     @echo "Make sure to:"
     @echo "1. Copy .env.example to .env and configure it"
-    @echo "2. Start SurrealDB: just db-start"
+    @echo "2. Start services: just up (or cd docker && docker compose up -d)"
     @echo "3. Run the orchestrator: just orchestrator"
     @echo "4. Run the dashboard: just dashboard"
