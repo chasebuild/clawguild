@@ -1,0 +1,26 @@
+version: '3.8'
+
+services:
+  orchestrator:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.orchestrator
+    ports:
+      - "3000:3000"
+    environment:
+      - DATABASE_URL=sqlite:./clawguild.db
+      - API_PORT=3000
+    volumes:
+      - ../orchestrator:/app
+    command: cargo run
+
+  dashboard:
+    build:
+      context: ../dashboard
+      dockerfile: Dockerfile
+    ports:
+      - "3001:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://orchestrator:3000
+    depends_on:
+      - orchestrator
