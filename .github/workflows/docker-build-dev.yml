@@ -3,7 +3,7 @@ name: Build Docker Images (Development)
 on:
   push:
     branches:
-      - main
+      - master
       - develop
     paths:
       - 'docker/**'
@@ -13,7 +13,7 @@ on:
       - '.github/workflows/docker-build-dev.yml'
   pull_request:
     branches:
-      - main
+      - master
       - develop
     paths:
       - 'docker/**'
