@@ -23,7 +23,8 @@ pub struct CreateTeamRequest {
     pub name: String,
     pub master_id: Uuid,
     pub slave_ids: Vec<Uuid>,
-    pub discord_channel_id: String,
+    pub discord_channel_id: String, // Legacy: single channel
+    pub discord_channels: Option<crate::models::DiscordChannels>, // New: multiple channels
 }
 
 #[derive(Serialize)]
@@ -39,12 +40,22 @@ pub async fn create_team(
     State(state): State<AppState>,
     Json(req): Json<CreateTeamRequest>,
 ) -> Result<Json<TeamResponse>, StatusCode> {
+    // Use provided discord_channels or create from single channel_id (legacy)
+    let discord_channels = req
+        .discord_channels
+        .unwrap_or_else(|| crate::models::DiscordChannels {
+            coordination_logs: req.discord_channel_id.clone(),
+            slave_communication: req.discord_channel_id.clone(),
+            master_orders: req.discord_channel_id.clone(),
+        });
+
     let team = Team {
         id: Uuid::new_v4(),
         name: req.name,
         master_id: req.master_id,
         slave_ids: req.slave_ids,
         discord_channel_id: req.discord_channel_id,
+        discord_channels,
         created_at: chrono::Utc::now(),
         updated_at: chrono::Utc::now(),
     };
@@ -122,6 +133,7 @@ pub async fn create_agent(
         team_id: None,
         discord_bot_token: req.discord_bot_token,
         discord_channel_id: req.discord_channel_id,
+        discord_channels: None, // Will be set from team when assigned
         model_provider: req.model_provider,
         model_api_key: req.model_api_key,
         model_endpoint: req.model_endpoint,
@@ -249,8 +261,9 @@ pub async fn send_task(
             .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
             .ok_or(StatusCode::NOT_FOUND)?;
 
-        let master_coord = crate::coordinator::master::MasterCoordinator;
-        let _delegated_task = master_coord
+        let _delegated_task = state
+            .coordinator
+            .master()
             .delegate_task(&team, &task.description)
             .await
             .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;

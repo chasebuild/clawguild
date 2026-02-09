@@ -45,8 +45,12 @@ impl Database {
             DEFINE FIELD status ON agents TYPE string ASSERT $value IN ['pending', 'deploying', 'running', 'stopped', 'error'];
             DEFINE FIELD deployment_id ON agents TYPE option<record(deployments) | string>;
             DEFINE FIELD team_id ON agents TYPE option<record(teams) | string>;
-            DEFINE FIELD discord_bot_token ON agents TYPE option<string>;
-            DEFINE FIELD discord_channel_id ON agents TYPE option<string>;
+                DEFINE FIELD discord_bot_token ON agents TYPE option<string>;
+                DEFINE FIELD discord_channel_id ON agents TYPE option<string>;
+                DEFINE FIELD discord_channels ON agents TYPE option<object>;
+                DEFINE FIELD discord_channels.coordination_logs ON agents TYPE option<string>;
+                DEFINE FIELD discord_channels.slave_communication ON agents TYPE option<string>;
+                DEFINE FIELD discord_channels.master_orders ON agents TYPE option<string>;
             DEFINE FIELD model_provider ON agents TYPE string ASSERT $value IN ['openclaw', 'anthropic', 'openai', 'byom'];
             DEFINE FIELD model_api_key ON agents TYPE option<string>;
             DEFINE FIELD model_endpoint ON agents TYPE option<string>;
@@ -87,6 +91,10 @@ impl Database {
             DEFINE FIELD master_id ON teams TYPE record(agents) | string;
             DEFINE FIELD slave_ids ON teams TYPE array<record(agents) | string>;
             DEFINE FIELD discord_channel_id ON teams TYPE string;
+            DEFINE FIELD discord_channels ON teams TYPE object;
+            DEFINE FIELD discord_channels.coordination_logs ON teams TYPE string;
+            DEFINE FIELD discord_channels.slave_communication ON teams TYPE string;
+            DEFINE FIELD discord_channels.master_orders ON teams TYPE string;
             DEFINE FIELD created_at ON teams TYPE datetime;
             DEFINE FIELD updated_at ON teams TYPE datetime;
             "#,

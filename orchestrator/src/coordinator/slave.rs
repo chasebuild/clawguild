@@ -1,12 +1,18 @@
 use anyhow::Result;
-use crate::models::Task;
+use crate::models::{Task, Team};
+use crate::coordinator::discord::DiscordClient;
 use uuid::Uuid;
 
-#[allow(dead_code)]
-pub struct SlaveCoordinator;
+#[derive(Clone)]
+pub struct SlaveCoordinator {
+    discord_client: Option<DiscordClient>,
+}
 
 impl SlaveCoordinator {
-    #[allow(dead_code)]
+    pub fn new(discord_client: Option<DiscordClient>) -> Self {
+        Self { discord_client }
+    }
+
     pub async fn execute_task(&self, _task: &Task) -> Result<String> {
         // Task execution is handled by the OpenClaw agent instance
         // This coordinator just tracks the task status
@@ -16,15 +22,18 @@ impl SlaveCoordinator {
         Ok("Task executed by OpenClaw agent".to_string())
     }
 
-    #[allow(dead_code)]
-    pub async fn report_result(&self, _task_id: Uuid, _result: &str) -> Result<()> {
-        // This would send a message to the Discord channel
-        // Format: "Task {task_id} completed: {result}"
-        // The master agent would then aggregate this result
+    pub async fn report_result(&self, task_id: Uuid, result: &str, team: &Team) -> Result<()> {
+        // Send result to slave communication channel
+        if let Some(discord) = &self.discord_client {
+            let message = format!("**Task {} Completed**\nResult: {}", task_id, result);
+            discord.send_slave_message(&team.discord_channels.slave_communication, &message).await?;
+            
+            // Also log to coordination channel
+            let log_message = format!("Slave reported completion for task {}: {}", task_id, result);
+            discord.log_coordination(&team.discord_channels.coordination_logs, &log_message).await?;
+        }
         
-        // Note: Discord message sending would use the DiscordClient here
-        // when full coordination system is implemented
-        tracing::info!("Task result reported");
+        tracing::info!("Task {} result reported: {}", task_id, result);
         Ok(())
     }
 }

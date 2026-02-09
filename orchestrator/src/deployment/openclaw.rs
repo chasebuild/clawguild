@@ -55,16 +55,41 @@ impl OpenClawConfig {
             }
         });
 
-        // Add Discord channel binding if configured
-        if let Some(channel_id) = &self.agent.discord_channel_id {
-            if let Some(bot_token) = &self.agent.discord_bot_token {
+        // Add Discord channel bindings if configured
+        if let Some(bot_token) = &self.agent.discord_bot_token {
+            let mut bindings = Vec::new();
+
+            // Use agent-specific channels if provided, otherwise fall back to team channels
+            if let Some(agent_channels) = &self.agent.discord_channels {
+                // Bind to all three channel types for comprehensive communication
+                bindings.push(json!({
+                    "channelId": agent_channels.coordination_logs,
+                    "agentId": self.agent.id.to_string(),
+                    "purpose": "coordination_logs"
+                }));
+                bindings.push(json!({
+                    "channelId": agent_channels.slave_communication,
+                    "agentId": self.agent.id.to_string(),
+                    "purpose": "slave_communication"
+                }));
+                bindings.push(json!({
+                    "channelId": agent_channels.master_orders,
+                    "agentId": self.agent.id.to_string(),
+                    "purpose": "master_orders"
+                }));
+            } else if let Some(channel_id) = &self.agent.discord_channel_id {
+                // Fallback to single channel (legacy support)
+                bindings.push(json!({
+                    "channelId": channel_id,
+                    "agentId": self.agent.id.to_string(),
+                }));
+            }
+
+            if !bindings.is_empty() {
                 config["channels"] = json!({
                     "discord": {
                         "token": bot_token,
-                        "bindings": [{
-                            "channelId": channel_id,
-                            "agentId": self.agent.id.to_string(),
-                        }]
+                        "bindings": bindings
                     }
                 });
             }

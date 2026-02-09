@@ -11,7 +11,8 @@ pub struct Agent {
     pub deployment_id: Option<Uuid>,
     pub team_id: Option<Uuid>,
     pub discord_bot_token: Option<String>,
-    pub discord_channel_id: Option<String>,
+    pub discord_channel_id: Option<String>, // Deprecated: use team's discord_channels
+    pub discord_channels: Option<DiscordChannels>, // Agent-specific channel overrides (optional)
     pub model_provider: ModelProvider,
     pub model_api_key: Option<String>,
     pub model_endpoint: Option<String>,
@@ -86,9 +87,17 @@ pub struct Team {
     pub name: String,
     pub master_id: Uuid,
     pub slave_ids: Vec<Uuid>,
-    pub discord_channel_id: String,
+    pub discord_channel_id: String, // Main coordination channel (deprecated, use discord_channels)
+    pub discord_channels: DiscordChannels,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DiscordChannels {
+    pub coordination_logs: String,      // Channel for coordination logs and status updates
+    pub slave_communication: String,     // Channel for slave-to-slave and slave-to-master communication
+    pub master_orders: String,            // Channel for master orders and task delegation
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
