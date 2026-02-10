@@ -11,7 +11,67 @@ pub struct Database {
 impl Database {
     pub async fn new(database_url: &str) -> Result<Self> {
         // Parse connection string format: ws://localhost:8000 or http://localhost:8000
-        let db = Surreal::new::<Ws>(database_url).await?;
+        // Retry connection with exponential backoff
+        eprintln!("Attempting to connect to database at: {}", database_url);
+        let mut retries = 5;
+        let mut delay = 1;
+        // Use WebSocket connection (SurrealDB's primary protocol)
+        // Ensure URL starts with ws:// or wss://
+        let ws_url = if database_url.starts_with("http://") {
+            database_url.replace("http://", "ws://")
+        } else if database_url.starts_with("https://") {
+            database_url.replace("https://", "wss://")
+        } else if !database_url.starts_with("ws://") && !database_url.starts_with("wss://") {
+            format!("ws://{}", database_url)
+        } else {
+            database_url.to_string()
+        };
+        eprintln!("Using WebSocket connection: {}", ws_url);
+
+        let db: Surreal<Client> = loop {
+            eprintln!("Trying to connect (attempt {})...", 6 - retries);
+
+            match tokio::time::timeout(
+                tokio::time::Duration::from_secs(30),
+                Surreal::new::<Ws>(&ws_url),
+            )
+            .await
+            {
+                Ok(Ok(db)) => {
+                    eprintln!("Database connection established");
+                    break db;
+                }
+                Ok(Err(e)) if retries > 0 => {
+                    eprintln!(
+                        "Failed to connect to database: {}, retrying in {}s... ({} retries left)",
+                        e, delay, retries
+                    );
+                    tokio::time::sleep(tokio::time::Duration::from_secs(delay)).await;
+                    retries -= 1;
+                    delay *= 2;
+                }
+                Err(_) if retries > 0 => {
+                    eprintln!(
+                        "Database connection timed out, retrying in {}s... ({} retries left)",
+                        delay, retries
+                    );
+                    tokio::time::sleep(tokio::time::Duration::from_secs(delay)).await;
+                    retries -= 1;
+                    delay *= 2;
+                }
+                Ok(Err(e)) => {
+                    return Err(anyhow::anyhow!(
+                        "Failed to connect to database after retries: {}",
+                        e
+                    ))
+                }
+                Err(_) => {
+                    return Err(anyhow::anyhow!(
+                        "Database connection timed out after all retries"
+                    ))
+                }
+            }
+        };
 
         // Sign in (if credentials are provided in the URL or use default)
         // For now, we'll use root credentials or no auth
@@ -27,6 +87,7 @@ impl Database {
     }
 
     pub fn db(&self) -> Surreal<Client> {
+        // Clone the Surreal instance - this works for both Ws and Http clients
         (*self.db).clone()
     }
 
@@ -71,9 +132,11 @@ impl Database {
             DEFINE TABLE deployments SCHEMAFULL;
             DEFINE FIELD id ON deployments TYPE record(deployments) | string;
             DEFINE FIELD agent_id ON deployments TYPE record(agents) | string;
+            DEFINE FIELD agent_ids ON deployments TYPE option<array<record(agents) | string>>;
             DEFINE FIELD provider ON deployments TYPE string ASSERT $value IN ['railway', 'flyio', 'aws'];
             DEFINE FIELD region ON deployments TYPE option<string>;
             DEFINE FIELD status ON deployments TYPE string ASSERT $value IN ['pending', 'creating', 'running', 'stopped', 'failed'];
+            DEFINE FIELD provider_id ON deployments TYPE option<string>;
             DEFINE FIELD endpoint ON deployments TYPE option<string>;
             DEFINE FIELD gateway_url ON deployments TYPE option<string>;
             DEFINE FIELD volume_id ON deployments TYPE option<string>;

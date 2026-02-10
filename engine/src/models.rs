@@ -20,7 +20,7 @@ pub struct Agent {
     pub skills: Vec<String>,
     pub workspace_dir: Option<String>,
     pub responsibility: Option<String>, // What the agent does (e.g., "Delegates, connects dots, ships")
-    pub emoji: Option<String>, // Emoji representing the agent's role (e.g., "🧰")
+    pub emoji: Option<String>,          // Emoji representing the agent's role (e.g., "🧰")
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
@@ -54,10 +54,15 @@ pub enum ModelProvider {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Deployment {
     pub id: Uuid,
+    /// Primary agent (first in multi-agent deployments); used for backward compatibility.
     pub agent_id: Uuid,
+    /// When set, this VPS hosts multiple agents; coordination (Discord) is unchanged per agent.
+    pub agent_ids: Option<Vec<Uuid>>,
     pub provider: VpsProvider,
     pub region: Option<String>,
     pub status: DeploymentStatus,
+    /// Provider-specific ID (e.g. flyio-{machine_id}) for get_status/destroy.
+    pub provider_id: Option<String>,
     pub endpoint: Option<String>,
     pub gateway_url: Option<String>,
     pub volume_id: Option<String>,
@@ -97,9 +102,9 @@ pub struct Team {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DiscordChannels {
-    pub coordination_logs: String,      // Channel for coordination logs and status updates
-    pub slave_communication: String,     // Channel for slave-to-slave and slave-to-master communication
-    pub master_orders: String,            // Channel for master orders and task delegation
+    pub coordination_logs: String, // Channel for coordination logs and status updates
+    pub slave_communication: String, // Channel for slave-to-slave and slave-to-master communication
+    pub master_orders: String,     // Channel for master orders and task delegation
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

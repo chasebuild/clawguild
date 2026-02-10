@@ -1,9 +1,9 @@
+pub mod discord;
 pub mod master;
 pub mod slave;
-pub mod discord;
 
-use anyhow::Result;
 use crate::storage::Database;
+use anyhow::Result;
 
 #[derive(Clone)]
 pub struct Coordinator {

@@ -1,8 +1,8 @@
-use anyhow::{Context, Result};
-use async_trait::async_trait;
-use crate::adapters::trait_def::{VpsProvider, AgentConfig, DeploymentId, VpsAgentStatus};
+use crate::adapters::trait_def::{AgentConfig, DeploymentId, VpsAgentStatus, VpsProvider};
 use crate::config::Config;
 use crate::models::DeploymentStatus;
+use anyhow::{Context, Result};
+use async_trait::async_trait;
 use reqwest::Client;
 use uuid::Uuid;
 
@@ -17,11 +17,13 @@ pub struct AwsAdapter {
 
 impl AwsAdapter {
     pub fn new(config: &Config) -> Result<Self> {
-        let access_key_id = config.aws_access_key_id
+        let access_key_id = config
+            .aws_access_key_id
             .as_ref()
             .context("AWS access key ID not configured")?
             .clone();
-        let secret_access_key = config.aws_secret_access_key
+        let secret_access_key = config
+            .aws_secret_access_key
             .as_ref()
             .context("AWS secret access key not configured")?
             .clone();
@@ -40,7 +42,7 @@ impl VpsProvider for AwsAdapter {
         // AWS implementation would use AWS SDK (aws-sdk-ecs, aws-sdk-ec2, etc.)
         // For now, return a placeholder with a note that full AWS SDK integration is needed
         // This requires additional dependencies: aws-config, aws-sdk-ecs, etc.
-        
+
         // Store OpenClaw config for when AWS SDK is implemented
         if let Some(_config_json) = &config.openclaw_config_json {
             tracing::debug!("OpenClaw config prepared for AWS deployment");
@@ -48,10 +50,10 @@ impl VpsProvider for AwsAdapter {
         if let Some(_onboard_cmd) = &config.openclaw_onboard_command {
             tracing::debug!("OpenClaw onboard command prepared for AWS deployment");
         }
-        
+
         tracing::warn!("AWS adapter: Full implementation requires AWS SDK. Using placeholder.");
         let provider_id = format!("aws-{}", Uuid::new_v4());
-        
+
         Ok(DeploymentId {
             id: config.agent.deployment_id.unwrap_or_else(Uuid::new_v4),
             provider_id,
@@ -76,10 +78,21 @@ impl VpsProvider for AwsAdapter {
         Ok(())
     }
 
-    async fn update_config(&self, _deployment_id: &DeploymentId, _config: AgentConfig) -> Result<()> {
+    async fn update_config(
+        &self,
+        _deployment_id: &DeploymentId,
+        _config: AgentConfig,
+    ) -> Result<()> {
         // AWS config update would modify ECS task definition or EC2 user data
         tracing::warn!("AWS adapter: Config update requires AWS SDK implementation");
         Ok(())
+    }
+
+    async fn get_logs(&self, _deployment_id: &DeploymentId, _lines: Option<usize>) -> Result<Vec<String>> {
+        // AWS logs would use CloudWatch Logs API
+        // Placeholder implementation
+        tracing::warn!("AWS adapter: Log retrieval requires AWS SDK implementation");
+        Ok(vec!["AWS logs require CloudWatch Logs API integration.".to_string()])
     }
 
     fn provider_name(&self) -> &str {

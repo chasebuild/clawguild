@@ -6,7 +6,15 @@ services:
     container_name: surrealdb
     ports:
       - "8000:8000"
-    command: start --log trace --user root --pass root memory
+    # Bind to all interfaces so other containers (api-server) can connect
+    command: start --log trace --user root --pass root --bind 0.0.0.0 memory
+    healthcheck:
+      # Verify the server is listening on 8000 (TCP check works on minimal images)
+      test: ["CMD-SHELL", "nc -z 127.0.0.1 8000 || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
     restart: unless-stopped
     profiles:
       - development
@@ -17,16 +25,18 @@ services:
       context: ..
       dockerfile: docker/Dockerfile.api-server
     ports:
-      - "3000:3000"
+      - "8080:8080"
     environment:
       - DATABASE_URL=ws://surrealdb:8000
-      - API_PORT=3000
+      - API_PORT=8080
     volumes:
-      - ../api-server:/app/api-server
-      - ../engine:/app/engine
+      - ..:/app
+      - /app/target
+    working_dir: /app
     command: cargo run --bin api-server
     depends_on:
-      - surrealdb
+      surrealdb:
+        condition: service_healthy
     profiles:
       - development
 
@@ -35,10 +45,10 @@ services:
       context: ..
       dockerfile: docker/Dockerfile.api-server
     ports:
-      - "3000:3000"
+      - "8080:8080"
     environment:
       - DATABASE_URL=ws://surrealdb:8000
-      - API_PORT=3000
+      - API_PORT=8080
     restart: unless-stopped
     depends_on:
       - surrealdb
@@ -50,9 +60,9 @@ services:
       context: ../dashboard
       dockerfile: Dockerfile
     ports:
-      - "3001:3000"
+      - "3002:3000"
     environment:
-      - NEXT_PUBLIC_API_URL=http://api-server:3000
+      - NEXT_PUBLIC_API_URL=http://api-server:8080
     depends_on:
       - api-server
     volumes:
@@ -67,9 +77,9 @@ services:
       context: ../dashboard
       dockerfile: Dockerfile.prod
     ports:
-      - "3001:3000"
+      - "3002:3000"
     environment:
-      - NEXT_PUBLIC_API_URL=http://api-server-prod:3000
+      - NEXT_PUBLIC_API_URL=http://api-server-prod:8080
     restart: unless-stopped
     depends_on:
       - api-server-prod

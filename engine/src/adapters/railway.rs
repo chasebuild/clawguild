@@ -189,6 +189,42 @@ impl VpsProvider for RailwayAdapter {
         Ok(())
     }
 
+    async fn get_logs(&self, deployment_id: &DeploymentId, lines: Option<usize>) -> Result<Vec<String>> {
+        let service_id = deployment_id
+            .provider_id
+            .strip_prefix("railway-")
+            .ok_or_else(|| anyhow::anyhow!("Invalid provider ID"))?;
+
+        let limit = lines.unwrap_or(100);
+
+        // Railway API: Get deployment logs
+        let response = self
+            .client
+            .get(&format!(
+                "https://api.railway.app/v1/services/{}/logs?limit={}",
+                service_id, limit
+            ))
+            .header("Authorization", format!("Bearer {}", self.api_key))
+            .send()
+            .await?;
+
+        if !response.status().is_success() {
+            return Ok(vec!["Logs not available via API. Use Railway dashboard.".to_string()]);
+        }
+
+        let logs: serde_json::Value = response.json().await?;
+        let log_lines = logs["logs"]
+            .as_array()
+            .map(|arr| {
+                arr.iter()
+                    .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                    .collect()
+            })
+            .unwrap_or_else(|| vec![]);
+
+        Ok(log_lines)
+    }
+
     fn provider_name(&self) -> &str {
         "railway"
     }

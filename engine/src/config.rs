@@ -26,11 +26,10 @@ impl Config {
             aws_secret_access_key: env::var("AWS_SECRET_ACCESS_KEY").ok(),
             openclaw_api_key: env::var("OPENCLAW_API_KEY").ok(),
             api_port: env::var("API_PORT")
-                .unwrap_or_else(|_| "3000".to_string())
+                .unwrap_or_else(|_| "8080".to_string())
                 .parse()
-                .unwrap_or(3000),
-            api_host: env::var("API_HOST")
-                .unwrap_or_else(|_| "0.0.0.0".to_string()),
+                .unwrap_or(8080),
+            api_host: env::var("API_HOST").unwrap_or_else(|_| "0.0.0.0".to_string()),
         })
     }
 }

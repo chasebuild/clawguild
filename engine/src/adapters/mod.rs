@@ -1,10 +1,10 @@
-pub mod trait_def;
-pub mod railway;
-pub mod flyio;
 pub mod aws;
+pub mod flyio;
+pub mod railway;
+pub mod trait_def;
 
-use anyhow::Result;
 use crate::config::Config;
+use anyhow::Result;
 use std::sync::Arc;
 
 pub use trait_def::VpsProvider;
@@ -43,7 +43,10 @@ impl VpsAdapters {
         })
     }
 
-    pub fn get_provider(&self, provider: crate::models::VpsProvider) -> Option<Arc<dyn VpsProvider>> {
+    pub fn get_provider(
+        &self,
+        provider: crate::models::VpsProvider,
+    ) -> Option<Arc<dyn VpsProvider>> {
         match provider {
             crate::models::VpsProvider::Railway => self.railway.clone(),
             crate::models::VpsProvider::FlyIo => self.flyio.clone(),

@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
 
 const client = axios.create({
   baseURL: API_BASE_URL,
@@ -83,6 +83,32 @@ export const api = {
     const response = await client.get<TeamRosterResponse>(`/api/teams/${teamId}/roster`);
     return response.data;
   },
+
+  async getServerHealth(): Promise<ServerHealthResponse> {
+    const response = await client.get<ServerHealthResponse>('/api/server/health');
+    return response.data;
+  },
+
+  async getServerStatus(): Promise<ServerStatusResponse> {
+    const response = await client.get<ServerStatusResponse>('/api/server/status');
+    return response.data;
+  },
+
+  async listDeployments(): Promise<DeploymentResponse[]> {
+    const response = await client.get<DeploymentResponse[]>('/api/deployments');
+    return response.data;
+  },
+
+  async getDeployment(id: string): Promise<DeploymentResponse> {
+    const response = await client.get<DeploymentResponse>(`/api/deployments/${id}`);
+    return response.data;
+  },
+
+  async getDeploymentLogs(id: string, lines?: number): Promise<string[]> {
+    const params = lines ? { lines: lines.toString() } : {};
+    const response = await client.get<string[]>(`/api/deployments/${id}/logs`, { params });
+    return response.data;
+  },
 };
 
 export interface TeamRosterMember {
@@ -98,4 +124,29 @@ export interface TeamRosterResponse {
   team_id: string;
   team_name: string;
   members: TeamRosterMember[];
+}
+
+export interface ServerHealthResponse {
+  status: string;
+  timestamp: string;
+  uptime_seconds: number;
+}
+
+export interface ServerStatusResponse {
+  status: string;
+  version: string;
+  database_connected: boolean;
+  timestamp: string;
+}
+
+export interface DeploymentResponse {
+  id: string;
+  agent_id: string;
+  provider: string;
+  region: string | null;
+  status: string;
+  endpoint: string | null;
+  gateway_url: string | null;
+  created_at: string;
+  updated_at: string;
 }

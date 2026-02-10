@@ -1,6 +1,6 @@
-use anyhow::Result;
-use crate::models::{Task, Team};
 use crate::coordinator::discord::DiscordClient;
+use crate::models::{Task, Team};
+use anyhow::Result;
 use uuid::Uuid;
 
 #[derive(Clone)]
@@ -17,7 +17,7 @@ impl SlaveCoordinator {
         // Task execution is handled by the OpenClaw agent instance
         // This coordinator just tracks the task status
         // The actual execution happens when the OpenClaw agent receives the task via Discord
-        
+
         // Simulate task execution result
         Ok("Task executed by OpenClaw agent".to_string())
     }
@@ -26,13 +26,17 @@ impl SlaveCoordinator {
         // Send result to slave communication channel
         if let Some(discord) = &self.discord_client {
             let message = format!("**Task {} Completed**\nResult: {}", task_id, result);
-            discord.send_slave_message(&team.discord_channels.slave_communication, &message).await?;
-            
+            discord
+                .send_slave_message(&team.discord_channels.slave_communication, &message)
+                .await?;
+
             // Also log to coordination channel
             let log_message = format!("Slave reported completion for task {}: {}", task_id, result);
-            discord.log_coordination(&team.discord_channels.coordination_logs, &log_message).await?;
+            discord
+                .log_coordination(&team.discord_channels.coordination_logs, &log_message)
+                .await?;
         }
-        
+
         tracing::info!("Task {} result reported: {}", task_id, result);
         Ok(())
     }

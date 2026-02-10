@@ -114,6 +114,13 @@ pub struct CreateAgentRequest {
     pub emoji: Option<String>,
 }
 
+#[derive(Deserialize)]
+pub struct DeployMultiRequest {
+    pub agent_ids: Vec<Uuid>,
+    pub provider: VpsProvider,
+    pub region: Option<String>,
+}
+
 #[derive(Serialize)]
 pub struct AgentResponse {
     pub id: Uuid,
@@ -208,6 +215,45 @@ pub async fn get_agent_status(
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
     Ok(Json(status))
+}
+
+pub async fn deploy_agents_multi(
+    State(state): State<AppState>,
+    Json(req): Json<DeployMultiRequest>,
+) -> Result<Json<DeploymentResponse>, StatusCode> {
+    if req.agent_ids.is_empty() {
+        return Err(StatusCode::BAD_REQUEST);
+    }
+
+    let agent_repo = engine::storage::repositories::AgentRepository::new(state.db.db().clone());
+    let mut agents = Vec::with_capacity(req.agent_ids.len());
+    for id in &req.agent_ids {
+        let agent = agent_repo
+            .get_by_id(*id)
+            .await
+            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
+            .ok_or(StatusCode::NOT_FOUND)?;
+        agents.push(agent);
+    }
+
+    let deployment = state
+        .deployment_manager
+        .deploy_agents_multi(agents, req.provider, req.region)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    Ok(Json(DeploymentResponse {
+        id: deployment.id,
+        agent_id: deployment.agent_id,
+        agent_ids: deployment.agent_ids,
+        provider: format!("{:?}", deployment.provider),
+        region: deployment.region,
+        status: format!("{:?}", deployment.status),
+        endpoint: deployment.endpoint,
+        gateway_url: deployment.gateway_url,
+        created_at: deployment.created_at,
+        updated_at: deployment.updated_at,
+    }))
 }
 
 pub async fn destroy_agent(
@@ -382,4 +428,177 @@ pub async fn get_team_roster(
         team_name: team.name,
         members,
     }))
+}
+
+#[derive(Serialize)]
+pub struct ServerHealthResponse {
+    pub status: String,
+    pub timestamp: chrono::DateTime<chrono::Utc>,
+    pub uptime_seconds: u64,
+}
+
+pub async fn get_server_health() -> Result<Json<ServerHealthResponse>, StatusCode> {
+    Ok(Json(ServerHealthResponse {
+        status: "healthy".to_string(),
+        timestamp: chrono::Utc::now(),
+        uptime_seconds: 0, // Would need to track start time
+    }))
+}
+
+#[derive(Serialize)]
+pub struct ServerStatusResponse {
+    pub status: String,
+    pub version: String,
+    pub database_connected: bool,
+    pub timestamp: chrono::DateTime<chrono::Utc>,
+}
+
+pub async fn get_server_status(
+    State(state): State<AppState>,
+) -> Result<Json<ServerStatusResponse>, StatusCode> {
+    // Check database connection by attempting a simple query
+    let db_connected = state.db.db().query("SELECT 1").await.is_ok();
+
+    Ok(Json(ServerStatusResponse {
+        status: "running".to_string(),
+        version: env!("CARGO_PKG_VERSION").to_string(),
+        database_connected: db_connected,
+        timestamp: chrono::Utc::now(),
+    }))
+}
+
+#[derive(Serialize)]
+pub struct DeploymentResponse {
+    pub id: Uuid,
+    pub agent_id: Uuid,
+    /// When set, this VPS hosts multiple agents (multi-agent deploy).
+    pub agent_ids: Option<Vec<Uuid>>,
+    pub provider: String,
+    pub region: Option<String>,
+    pub status: String,
+    pub endpoint: Option<String>,
+    pub gateway_url: Option<String>,
+    pub created_at: chrono::DateTime<chrono::Utc>,
+    pub updated_at: chrono::DateTime<chrono::Utc>,
+}
+
+pub async fn list_deployments(
+    State(state): State<AppState>,
+) -> Result<Json<Vec<DeploymentResponse>>, StatusCode> {
+    // Query all deployments
+    let mut result = state
+        .db
+        .db()
+        .query("SELECT * FROM deployments ORDER BY created_at DESC")
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    let deployments: Vec<engine::models::Deployment> = result
+        .take(0)
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    let responses: Vec<DeploymentResponse> = deployments
+        .into_iter()
+        .map(|d| DeploymentResponse {
+            id: d.id,
+            agent_id: d.agent_id,
+            agent_ids: d.agent_ids,
+            provider: format!("{:?}", d.provider),
+            region: d.region,
+            status: format!("{:?}", d.status),
+            endpoint: d.endpoint,
+            gateway_url: d.gateway_url,
+            created_at: d.created_at,
+            updated_at: d.updated_at,
+        })
+        .collect();
+
+    Ok(Json(responses))
+}
+
+pub async fn get_deployment(
+    State(state): State<AppState>,
+    Path(deployment_id): Path<Uuid>,
+) -> Result<Json<DeploymentResponse>, StatusCode> {
+    let mut result = state
+        .db
+        .db()
+        .query("SELECT * FROM deployments WHERE id = $id LIMIT 1")
+        .bind(("id", deployment_id.to_string()))
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    let deployment: Option<engine::models::Deployment> = result
+        .take(0)
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    let deployment = deployment.ok_or(StatusCode::NOT_FOUND)?;
+
+    Ok(Json(DeploymentResponse {
+        id: deployment.id,
+        agent_id: deployment.agent_id,
+        agent_ids: deployment.agent_ids,
+        provider: format!("{:?}", deployment.provider),
+        region: deployment.region,
+        status: format!("{:?}", deployment.status),
+        endpoint: deployment.endpoint,
+        gateway_url: deployment.gateway_url,
+        created_at: deployment.created_at,
+        updated_at: deployment.updated_at,
+    }))
+}
+
+pub async fn get_deployment_logs(
+    State(state): State<AppState>,
+    Path(deployment_id): Path<Uuid>,
+    axum::extract::Query(params): axum::extract::Query<std::collections::HashMap<String, String>>,
+) -> Result<Json<Vec<String>>, StatusCode> {
+    // Get deployment
+    let mut result = state
+        .db
+        .db()
+        .query("SELECT * FROM deployments WHERE id = $id LIMIT 1")
+        .bind(("id", deployment_id.to_string()))
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    let deployment: Option<engine::models::Deployment> = result
+        .take(0)
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    let deployment = deployment.ok_or(StatusCode::NOT_FOUND)?;
+
+    // Get lines parameter
+    let lines = params
+        .get("lines")
+        .and_then(|s| s.parse::<usize>().ok())
+        .unwrap_or(100);
+
+    // Get VPS provider adapter
+    let vps_provider = state
+        .deployment_manager
+        .vps_adapters
+        .get_provider(deployment.provider.clone())
+        .ok_or(StatusCode::NOT_FOUND)?;
+
+    let provider_id = deployment
+        .provider_id
+        .unwrap_or_else(|| match deployment.provider {
+            engine::models::VpsProvider::FlyIo => format!("flyio-{}", deployment.id),
+            engine::models::VpsProvider::Railway => format!("railway-{}", deployment.id),
+            engine::models::VpsProvider::Aws => format!("aws-{}", deployment.id),
+        });
+
+    let deployment_id_struct = engine::adapters::trait_def::DeploymentId {
+        id: deployment.id,
+        provider_id,
+    };
+
+    // Get logs from VPS provider
+    let logs: Vec<String> = vps_provider
+        .get_logs(&deployment_id_struct, Some(lines))
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    Ok(Json(logs))
 }

@@ -4,19 +4,41 @@ use serde_json::json;
 use std::process::Command;
 
 pub struct OpenClawConfig {
+    /// Single-agent mode: one agent.
     pub agent: Agent,
+    /// Multi-agent mode: when set, config is generated for all agents on one VPS (same coordination).
+    pub agents: Option<Vec<Agent>>,
 }
 
 impl OpenClawConfig {
     pub fn new(agent: Agent) -> Self {
-        Self { agent }
+        Self {
+            agent: agent.clone(),
+            agents: None,
+        }
+    }
+
+    /// Build config for multiple agents on one VPS; coordination (Discord bindings) is per agent.
+    pub fn multi(agents: Vec<Agent>) -> Self {
+        let agent = agents.first().cloned().expect("multi requires at least one agent");
+        Self {
+            agent,
+            agents: Some(agents),
+        }
+    }
+
+    fn agents_slice(&self) -> &[Agent] {
+        match &self.agents {
+            Some(a) => a.as_slice(),
+            None => std::slice::from_ref(&self.agent),
+        }
     }
 
     pub fn generate_onboard_command(&self) -> Result<Vec<String>> {
+        let first = self.agents_slice().first().unwrap_or(&self.agent);
         let mut args = vec!["onboard".to_string(), "--non-interactive".to_string()];
 
-        // Model provider
-        match &self.agent.model_provider {
+        match &first.model_provider {
             ModelProvider::Anthropic => {
                 args.push("--model".to_string());
                 args.push("anthropic".to_string());
@@ -29,13 +51,10 @@ impl OpenClawConfig {
                 args.push("--model".to_string());
                 args.push("custom".to_string());
             }
-            ModelProvider::OpenClaw => {
-                // Use default OpenClaw model
-            }
+            ModelProvider::OpenClaw => {}
         }
 
-        // Agent directory
-        if let Some(workspace_dir) = &self.agent.workspace_dir {
+        if let Some(workspace_dir) = &first.workspace_dir {
             args.push("--agent-dir".to_string());
             args.push(workspace_dir.clone());
         }
@@ -44,61 +63,71 @@ impl OpenClawConfig {
     }
 
     pub fn generate_config_json(&self) -> Result<serde_json::Value> {
+        let agents_slice = self.agents_slice();
+        let list: Vec<serde_json::Value> = agents_slice
+            .iter()
+            .map(|a| {
+                json!({
+                    "name": a.name,
+                    "workspace": a.workspace_dir.clone().unwrap_or_else(|| {
+                        format!("~/.openclaw/workspace-{}", a.id)
+                    }),
+                })
+            })
+            .collect();
+
         let mut config = json!({
             "agents": {
-                "list": [{
-                    "name": self.agent.name,
-                    "workspace": self.agent.workspace_dir.clone().unwrap_or_else(|| {
-                        format!("~/.openclaw/workspace-{}", self.agent.id)
-                    }),
-                }]
+                "list": list
             }
         });
 
-        // Add Discord channel bindings if configured
-        if let Some(bot_token) = &self.agent.discord_bot_token {
-            let mut bindings = Vec::new();
-
-            // Use agent-specific channels if provided, otherwise fall back to team channels
-            if let Some(agent_channels) = &self.agent.discord_channels {
-                // Bind to all three channel types for comprehensive communication
-                bindings.push(json!({
-                    "channelId": agent_channels.coordination_logs,
-                    "agentId": self.agent.id.to_string(),
+        // Merge Discord bindings from all agents (same coordination mechanism per agent)
+        let mut all_bindings = Vec::new();
+        let mut bot_token: Option<String> = None;
+        for a in agents_slice {
+            if let Some(token) = &a.discord_bot_token {
+                bot_token.get_or_insert_with(|| token.clone());
+            }
+            if let Some(channels) = &a.discord_channels {
+                all_bindings.push(json!({
+                    "channelId": channels.coordination_logs,
+                    "agentId": a.id.to_string(),
                     "purpose": "coordination_logs"
                 }));
-                bindings.push(json!({
-                    "channelId": agent_channels.slave_communication,
-                    "agentId": self.agent.id.to_string(),
+                all_bindings.push(json!({
+                    "channelId": channels.slave_communication,
+                    "agentId": a.id.to_string(),
                     "purpose": "slave_communication"
                 }));
-                bindings.push(json!({
-                    "channelId": agent_channels.master_orders,
-                    "agentId": self.agent.id.to_string(),
+                all_bindings.push(json!({
+                    "channelId": channels.master_orders,
+                    "agentId": a.id.to_string(),
                     "purpose": "master_orders"
                 }));
-            } else if let Some(channel_id) = &self.agent.discord_channel_id {
-                // Fallback to single channel (legacy support)
-                bindings.push(json!({
+            } else if let Some(channel_id) = &a.discord_channel_id {
+                all_bindings.push(json!({
                     "channelId": channel_id,
-                    "agentId": self.agent.id.to_string(),
+                    "agentId": a.id.to_string(),
                 }));
             }
-
-            if !bindings.is_empty() {
+        }
+        if let Some(token) = bot_token {
+            if !all_bindings.is_empty() {
                 config["channels"] = json!({
                     "discord": {
-                        "token": bot_token,
-                        "bindings": bindings
+                        "token": token,
+                        "bindings": all_bindings
                     }
                 });
             }
         }
 
-        // Add model configuration
-        match &self.agent.model_provider {
+        // Auth: use first agent's model config (multi-agent typically shares same provider)
+        let first = agents_slice.first().unwrap_or(&self.agent);
+        match &first.model_provider {
             ModelProvider::Anthropic => {
-                if let Some(api_key) = &self.agent.model_api_key {
+                if let Some(api_key) = &first.model_api_key {
                     config["auth"] = json!({
                         "anthropic": {
                             "apiKey": api_key
@@ -107,7 +136,7 @@ impl OpenClawConfig {
                 }
             }
             ModelProvider::OpenAI => {
-                if let Some(api_key) = &self.agent.model_api_key {
+                if let Some(api_key) = &first.model_api_key {
                     config["auth"] = json!({
                         "openai": {
                             "apiKey": api_key
@@ -116,18 +145,16 @@ impl OpenClawConfig {
                 }
             }
             ModelProvider::BYOM => {
-                if let Some(endpoint) = &self.agent.model_endpoint {
+                if let Some(endpoint) = &first.model_endpoint {
                     config["models"] = json!({
                         "custom": {
                             "endpoint": endpoint,
-                            "apiKey": self.agent.model_api_key
+                            "apiKey": first.model_api_key
                         }
                     });
                 }
             }
-            ModelProvider::OpenClaw => {
-                // Use default OpenClaw configuration
-            }
+            ModelProvider::OpenClaw => {}
         }
 
         Ok(config)
