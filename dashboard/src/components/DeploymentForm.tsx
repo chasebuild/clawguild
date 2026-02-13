@@ -43,7 +43,13 @@ export function DeploymentForm({ onSuccess }: DeploymentFormProps) {
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4 border rounded-lg p-6">
+    <form onSubmit={handleSubmit} className="space-y-4 border rounded-2xl p-6 bg-card shadow-sm">
+      <div>
+        <h3 className="text-lg font-semibold">Single Agent Deployment</h3>
+        <p className="text-sm text-muted-foreground">
+          Provision an agent and bind it to a VPS with model credentials.
+        </p>
+      </div>
       <div>
         <label className="block text-sm font-medium mb-1">Agent Name</label>
         <input

@@ -47,7 +47,15 @@ async fn main() -> Result<()> {
 
     // Initialize API server
     eprintln!("Initializing API server...");
-    let api_server = api::ApiServer::new(db.clone(), deployment_manager, coordinator).await?;
+    let start_time = std::time::Instant::now();
+    let api_server = api::ApiServer::new(
+        db.clone(),
+        deployment_manager,
+        coordinator,
+        config.api_key.clone(),
+        start_time,
+    )
+    .await?;
     eprintln!("API server initialized");
 
     // Start API server

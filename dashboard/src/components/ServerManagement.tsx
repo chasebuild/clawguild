@@ -40,7 +40,7 @@ export function ServerManagement() {
     return (
       <Card>
         <CardHeader>
-          <CardTitle>API Server Management</CardTitle>
+          <CardTitle>System Readiness</CardTitle>
         </CardHeader>
         <CardContent>
           <div>Loading server status...</div>
@@ -53,7 +53,10 @@ export function ServerManagement() {
     <div className="space-y-4">
       <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-2xl font-bold">API Server</CardTitle>
+          <div>
+            <CardTitle className="text-2xl font-bold">System Readiness</CardTitle>
+            <CardDescription>Live heartbeat for the API and database</CardDescription>
+          </div>
           <Button
             variant="outline"
             size="sm"
@@ -65,11 +68,11 @@ export function ServerManagement() {
           </Button>
         </CardHeader>
         <CardContent>
-          <div className="space-y-4">
+          <div className="grid gap-4 md:grid-cols-2">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Server className="h-5 w-5" />
-                <span className="font-medium">Status</span>
+                <span className="font-medium">API Status</span>
               </div>
               <Badge variant={status?.status === 'running' ? 'default' : 'destructive'}>
                 {status?.status || 'unknown'}

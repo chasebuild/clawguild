@@ -12,9 +12,9 @@ A Rust-based orchestrator for deploying and managing multiple OpenClaw agent ins
 
 ## Architecture
 
-- **Orchestrator Service** (Rust): Manages deployments, configurations, and agent lifecycle
+- **Engine (Rust)**: Core orchestration logic, storage, deployments, and Discord coordination
+- **API Server (Rust)**: Axum HTTP API exposing engine functionality
 - **VPS Adapter Layer**: Abstract interface for different VPS providers
-- **Agent Coordinator**: Handles master-slave coordination via Discord
 - **Web Dashboard**: Next.js frontend with shadcn/ui components
 
 ## Quick Start
@@ -24,7 +24,7 @@ A Rust-based orchestrator for deploying and managing multiple OpenClaw agent ins
 - Rust 1.70+
 - Node.js 22+
 - pnpm
-- SurrealDB (for database)
+- PostgreSQL (for database)
 - Docker (optional, for local development)
 
 ### Setup
@@ -40,18 +40,23 @@ A Rust-based orchestrator for deploying and managing multiple OpenClaw agent ins
    pnpm install
    ```
 
-3. Start SurrealDB:
+3. Start PostgreSQL:
    ```bash
    # Using Docker
-   docker run -d -p 8000:8000 surrealdb/surrealdb:latest start --log trace --user root --pass root memory
+   docker run -d -p 5432:5432 \\
+     -e POSTGRES_USER=postgres \\
+     -e POSTGRES_PASSWORD=postgres \\
+     -e POSTGRES_DB=clawguild \\
+     postgres:16-alpine
    ```
 
 4. Configure environment variables (see `.env.example`):
-   - Set `DATABASE_URL=ws://localhost:8000` (or your SurrealDB URL)
+   - Set `DATABASE_URL=postgres://postgres:postgres@localhost:5432/clawguild`
+   - Optional: set `API_KEY` to require `x-api-key` on API requests
 
-5. Start the orchestrator service (it will run migrations automatically):
+5. Start the API server (it will run migrations automatically):
    ```bash
-   cd orchestrator
+   cd api-server
    cargo run
    ```
 
@@ -62,11 +67,14 @@ A Rust-based orchestrator for deploying and managing multiple OpenClaw agent ins
    pnpm dev
    ```
 
+   If `API_KEY` is set for the server, also set `NEXT_PUBLIC_API_KEY` in the dashboard environment.
+
 ## Project Structure
 
 ```
 clawguild/
-├── orchestrator/     # Rust orchestrator service
+├── engine/           # Core Rust engine library
+├── api-server/       # Rust API server (Axum)
 ├── dashboard/        # Next.js web dashboard
 ├── docker/           # Docker configurations
 └── scripts/          # Deployment scripts

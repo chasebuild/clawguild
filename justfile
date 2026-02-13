@@ -19,15 +19,15 @@ install: install-rust install-frontend
 migrate:
     @echo "Migrations run automatically on startup"
 
-# Start SurrealDB (requires Docker Compose)
+# Start Postgres (requires Docker Compose)
 db-start:
-    cd docker && docker compose --profile development up -d surrealdb
+    cd docker && docker compose --profile development up -d postgres
 
-# Stop SurrealDB
+# Stop Postgres
 db-stop:
-    cd docker && docker compose stop surrealdb
+    cd docker && docker compose stop postgres
 
-# Start all development services (SurrealDB, orchestrator, dashboard)
+# Start all development services (Postgres, API server, dashboard)
 up:
     cd docker && docker compose --profile development up -d
 

@@ -5,7 +5,7 @@ import { api, DeploymentResponse } from '@/lib/api';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { RefreshCw, Terminal, Download } from 'lucide-react';
+import { RefreshCw, Terminal } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 
 export function VpsLogsViewer() {
@@ -16,6 +16,7 @@ export function VpsLogsViewer() {
   const [loadingLogs, setLoadingLogs] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [lines, setLines] = useState(100);
+  const [filter, setFilter] = useState<'all' | 'errors' | 'warnings'>('all');
 
   const loadDeployments = async () => {
     try {
@@ -75,11 +76,21 @@ export function VpsLogsViewer() {
     }
   };
 
+  const filteredLogs = logs.filter((log) => {
+    if (filter === 'errors') {
+      return /error|failed|panic|exception/i.test(log);
+    }
+    if (filter === 'warnings') {
+      return /warn|warning/i.test(log);
+    }
+    return true;
+  });
+
   if (loading) {
     return (
       <Card>
         <CardHeader>
-          <CardTitle>VPS Instance Logs</CardTitle>
+          <CardTitle>Debug Console</CardTitle>
         </CardHeader>
         <CardContent>
           <div>Loading deployments...</div>
@@ -93,8 +104,8 @@ export function VpsLogsViewer() {
       <CardHeader>
         <div className="flex items-center justify-between">
           <div>
-            <CardTitle>VPS Instance Logs</CardTitle>
-            <CardDescription>View logs from deployed VPS instances</CardDescription>
+            <CardTitle>Debug Console</CardTitle>
+            <CardDescription>Trace errors and inspect deployment logs in real time</CardDescription>
           </div>
           <Button
             variant="outline"
@@ -149,6 +160,19 @@ export function VpsLogsViewer() {
               </SelectContent>
             </Select>
           </div>
+          <div className="w-40">
+            <label className="text-sm font-medium mb-2 block">Filter</label>
+            <Select value={filter} onValueChange={(v) => setFilter(v as typeof filter)}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Logs</SelectItem>
+                <SelectItem value="errors">Errors</SelectItem>
+                <SelectItem value="warnings">Warnings</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </div>
 
         {selectedDeployment && (
@@ -168,17 +192,26 @@ export function VpsLogsViewer() {
                 Reload
               </Button>
             </div>
-            <div className="bg-black text-green-400 font-mono text-sm p-4 rounded-lg h-96 overflow-auto">
+            <div className="bg-slate-950 text-emerald-300 font-mono text-xs p-4 rounded-xl h-96 overflow-auto border border-slate-800">
               {loadingLogs ? (
                 <div className="text-gray-500">Loading logs...</div>
-              ) : logs.length === 0 ? (
+              ) : filteredLogs.length === 0 ? (
                 <div className="text-gray-500">No logs available</div>
               ) : (
-                logs.map((log, index) => (
-                  <div key={index} className="mb-1">
-                    {log}
-                  </div>
-                ))
+                filteredLogs.map((log, index) => {
+                  const isError = /error|failed|panic|exception/i.test(log);
+                  const isWarn = /warn|warning/i.test(log);
+                  const color = isError
+                    ? 'text-rose-300'
+                    : isWarn
+                      ? 'text-amber-200'
+                      : 'text-emerald-300';
+                  return (
+                    <div key={index} className={`mb-1 ${color}`}>
+                      {log}
+                    </div>
+                  );
+                })
               )}
             </div>
           </div>

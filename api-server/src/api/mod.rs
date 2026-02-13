@@ -7,6 +7,7 @@ use axum::Router;
 use engine::coordinator::Coordinator;
 use engine::deployment::manager::DeploymentManager;
 use engine::storage::Database;
+use std::time::Instant;
 
 pub struct ApiServer {
     router: Router,
@@ -17,8 +18,10 @@ impl ApiServer {
         db: Database,
         deployment_manager: DeploymentManager,
         coordinator: Coordinator,
+        api_key: Option<String>,
+        start_time: Instant,
     ) -> Result<Self> {
-        let router = routes::create_router(db, deployment_manager, coordinator).await?;
+        let router = routes::create_router(db, deployment_manager, coordinator, api_key, start_time).await?;
 
         Ok(Self { router })
     }

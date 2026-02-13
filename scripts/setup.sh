@@ -9,9 +9,9 @@ if ! command -v cargo &> /dev/null; then
     exit 1
 fi
 
-# Build Rust orchestrator
-echo "Building orchestrator..."
-cd orchestrator
+# Build Rust API server (and engine)
+echo "Building API server..."
+cd api-server
 cargo build --release
 cd ..
 
@@ -19,14 +19,14 @@ cd ..
 echo "Setting up dashboard..."
 cd dashboard
 if [ ! -d "node_modules" ]; then
-    npm install
+    pnpm install
 fi
 cd ..
 
 echo "Setup complete!"
 echo ""
-echo "To start the orchestrator:"
-echo "  cd orchestrator && cargo run"
+echo "To start the API server:"
+echo "  cd api-server && cargo run"
 echo ""
 echo "To start the dashboard:"
-echo "  cd dashboard && npm run dev"
+echo "  cd dashboard && pnpm dev"

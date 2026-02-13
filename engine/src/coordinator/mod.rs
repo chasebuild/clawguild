@@ -16,7 +16,7 @@ pub struct Coordinator {
 impl Coordinator {
     pub async fn new(db: Database, discord_bot_token: Option<String>) -> Result<Self> {
         let discord_client = if let Some(token) = discord_bot_token {
-            let client = discord::DiscordClient::new(token).await?;
+            let client = discord::DiscordClient::new(token, db.clone()).await?;
             // Initialize the Discord client (start event handlers if needed)
             client.start().await?;
             Some(client)
@@ -24,8 +24,8 @@ impl Coordinator {
             None
         };
 
-        let master_coordinator = master::MasterCoordinator::new(discord_client.clone());
-        let slave_coordinator = slave::SlaveCoordinator::new(discord_client.clone());
+        let master_coordinator = master::MasterCoordinator::new(db.clone(), discord_client.clone());
+        let slave_coordinator = slave::SlaveCoordinator::new(db.clone(), discord_client.clone());
 
         Ok(Self {
             db,

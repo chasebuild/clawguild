@@ -1,11 +1,13 @@
 import axios from 'axios';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
+const API_KEY = process.env.NEXT_PUBLIC_API_KEY;
 
 const client = axios.create({
   baseURL: API_BASE_URL,
   headers: {
     'Content-Type': 'application/json',
+    ...(API_KEY ? { 'x-api-key': API_KEY } : {}),
   },
 });
 
@@ -23,6 +25,7 @@ export interface CreateAgentRequest {
   role: 'master' | 'slave';
   provider: 'railway' | 'flyio' | 'aws';
   region?: string;
+  team_id?: string;
   discord_bot_token?: string;
   discord_channel_id?: string;
   model_provider: 'openclaw' | 'anthropic' | 'openai' | 'byom';
@@ -42,11 +45,18 @@ export interface Team {
   discord_channel_id: string;
 }
 
+export interface DiscordChannels {
+  coordination_logs: string;
+  slave_communication: string;
+  master_orders: string;
+}
+
 export interface CreateTeamRequest {
   name: string;
   master_id: string;
   slave_ids: string[];
   discord_channel_id: string;
+  discord_channels?: DiscordChannels;
 }
 
 export const api = {
@@ -79,6 +89,14 @@ export const api = {
     return response.data;
   },
 
+  async assignAgentToTeam(
+    teamId: string,
+    data: { agent_id: string; role: 'master' | 'slave' },
+  ): Promise<Team> {
+    const response = await client.post<Team>(`/api/teams/${teamId}/assign`, data);
+    return response.data;
+  },
+
   async getTeamRoster(teamId: string): Promise<TeamRosterResponse> {
     const response = await client.get<TeamRosterResponse>(`/api/teams/${teamId}/roster`);
     return response.data;
@@ -107,6 +125,40 @@ export const api = {
   async getDeploymentLogs(id: string, lines?: number): Promise<string[]> {
     const params = lines ? { lines: lines.toString() } : {};
     const response = await client.get<string[]>(`/api/deployments/${id}/logs`, { params });
+    return response.data;
+  },
+
+  async deployAgentsMulti(data: {
+    agent_ids: string[];
+    provider: 'railway' | 'flyio' | 'aws';
+    region?: string;
+  }): Promise<DeploymentResponse> {
+    const response = await client.post<DeploymentResponse>('/api/agents/deploy-multi', data);
+    return response.data;
+  },
+
+  async sendTask(agentId: string, description: string): Promise<Task> {
+    const response = await client.post<Task>(`/api/agents/${agentId}/tasks`, { description });
+    return response.data;
+  },
+
+  async getAgentTasks(agentId: string): Promise<Task[]> {
+    const response = await client.get<Task[]>(`/api/agents/${agentId}/tasks`);
+    return response.data;
+  },
+
+  async updateTask(
+    taskId: string,
+    data: { status?: Task['status']; result?: string },
+  ): Promise<Task> {
+    const response = await client.patch<Task>(`/api/tasks/${taskId}`, data);
+    return response.data;
+  },
+
+  async aggregateTask(taskId: string): Promise<{ task_id: string; aggregated_result: string }> {
+    const response = await client.get<{ task_id: string; aggregated_result: string }>(
+      `/api/tasks/${taskId}/aggregate`,
+    );
     return response.data;
   },
 };
@@ -142,11 +194,24 @@ export interface ServerStatusResponse {
 export interface DeploymentResponse {
   id: string;
   agent_id: string;
+  agent_ids?: string[] | null;
   provider: string;
   region: string | null;
   status: string;
   endpoint: string | null;
   gateway_url: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Task {
+  id: string;
+  team_id: string;
+  parent_task_id: string | null;
+  assigned_to: string | null;
+  status: 'pending' | 'in_progress' | 'completed' | 'failed';
+  description: string;
+  result: string | null;
   created_at: string;
   updated_at: string;
 }

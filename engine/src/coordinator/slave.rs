@@ -1,16 +1,18 @@
 use crate::coordinator::discord::DiscordClient;
-use crate::models::{Task, Team};
+use crate::models::{Task, TaskStatus, Team};
+use crate::storage::{repositories, Database};
 use anyhow::Result;
 use uuid::Uuid;
 
 #[derive(Clone)]
 pub struct SlaveCoordinator {
+    db: Database,
     discord_client: Option<DiscordClient>,
 }
 
 impl SlaveCoordinator {
-    pub fn new(discord_client: Option<DiscordClient>) -> Self {
-        Self { discord_client }
+    pub fn new(db: Database, discord_client: Option<DiscordClient>) -> Self {
+        Self { db, discord_client }
     }
 
     pub async fn execute_task(&self, _task: &Task) -> Result<String> {
@@ -23,6 +25,11 @@ impl SlaveCoordinator {
     }
 
     pub async fn report_result(&self, task_id: Uuid, result: &str, team: &Team) -> Result<()> {
+        let task_repo = repositories::TaskRepository::new(self.db.db().clone());
+        task_repo
+            .update_fields(task_id, Some(TaskStatus::Completed), Some(result.to_string()))
+            .await?;
+
         // Send result to slave communication channel
         if let Some(discord) = &self.discord_client {
             let message = format!("**Task {} Completed**\nResult: {}", task_id, result);

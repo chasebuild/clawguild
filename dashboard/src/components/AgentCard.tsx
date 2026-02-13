@@ -15,25 +15,25 @@ interface AgentCardProps {
 
 export function AgentCard({ agent }: AgentCardProps) {
   return (
-    <div className="border rounded-lg p-6 bg-card">
-      <div className="flex items-center justify-between mb-4">
-        <h3 className="text-lg font-semibold">{agent.name}</h3>
+    <div className="border rounded-2xl p-6 bg-card shadow-sm hover:shadow-md transition-shadow">
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <div className="text-3xl leading-none">{agent.emoji || '🧭'}</div>
+          <div>
+            <h3 className="text-lg font-semibold">{agent.name}</h3>
+            <p className="text-xs uppercase tracking-wide text-muted-foreground">
+              {agent.role} agent
+            </p>
+          </div>
+        </div>
         <StatusIndicator status={agent.status} />
       </div>
-      <div className="space-y-2">
-        {agent.emoji && (
-          <div className="text-2xl mb-2">{agent.emoji}</div>
-        )}
+
+      <div className="mt-4 space-y-2 text-sm text-muted-foreground">
         <div className="flex items-center gap-2">
-          <span className="text-sm text-muted-foreground">Role:</span>
-          <span className="text-sm font-medium capitalize">{agent.role}</span>
-        </div>
-        {agent.responsibility && (
-          <p className="text-sm text-muted-foreground">{agent.responsibility}</p>
-        )}
-        <div className="flex items-center gap-2">
-          <span className="text-sm text-muted-foreground">Status:</span>
-          <span className="text-sm font-medium capitalize">{agent.status}</span>
+          <span className="font-medium text-foreground">Focus</span>
+          <span className="text-xs">•</span>
+          <span>{agent.responsibility || 'Standing by for directives'}</span>
         </div>
       </div>
     </div>

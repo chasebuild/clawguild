@@ -4,26 +4,26 @@
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
-    --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
-    --primary: 222.2 47.4% 11.2%;
-    --primary-foreground: 210 40% 98%;
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 222.2 84% 4.9%;
-    --radius: 0.5rem;
+    --background: 38 33% 96%;
+    --foreground: 204 35% 12%;
+    --card: 40 33% 98%;
+    --card-foreground: 204 35% 12%;
+    --popover: 40 33% 98%;
+    --popover-foreground: 204 35% 12%;
+    --primary: 195 58% 24%;
+    --primary-foreground: 40 33% 98%;
+    --secondary: 30 22% 90%;
+    --secondary-foreground: 204 35% 12%;
+    --muted: 30 20% 88%;
+    --muted-foreground: 204 12% 40%;
+    --accent: 18 70% 50%;
+    --accent-foreground: 40 33% 98%;
+    --destructive: 0 72% 52%;
+    --destructive-foreground: 40 33% 98%;
+    --border: 30 14% 82%;
+    --input: 30 14% 82%;
+    --ring: 195 58% 24%;
+    --radius: 0.9rem;
   }
 
   .dark {
@@ -55,5 +55,30 @@
   }
   body {
     @apply bg-background text-foreground;
+    background-image:
+      radial-gradient(1200px 600px at 10% -10%, rgba(0, 0, 0, 0.06), transparent 60%),
+      radial-gradient(1000px 600px at 90% -20%, rgba(198, 93, 59, 0.12), transparent 55%),
+      linear-gradient(180deg, rgba(255, 255, 255, 0.7), rgba(255, 255, 255, 0.4));
+    background-attachment: fixed;
+  }
+}
+
+@layer utilities {
+  .app-shell {
+    @apply min-h-screen;
+    background-image:
+      radial-gradient(1200px 600px at 10% -10%, rgba(0, 0, 0, 0.06), transparent 60%),
+      radial-gradient(1000px 600px at 90% -20%, rgba(198, 93, 59, 0.12), transparent 55%),
+      linear-gradient(180deg, rgba(255, 255, 255, 0.8), rgba(255, 255, 255, 0.5));
+    background-attachment: fixed;
+  }
+
+  .surface-glass {
+    background: rgba(255, 255, 255, 0.75);
+    backdrop-filter: blur(12px);
+  }
+
+  .status-chip {
+    @apply inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-medium tracking-wide uppercase;
   }
 }

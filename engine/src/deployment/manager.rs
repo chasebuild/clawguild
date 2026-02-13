@@ -90,17 +90,13 @@ impl DeploymentManager {
             let status = vps_provider.get_status(&deploy_result).await?;
 
             if matches!(status.status, DeploymentStatus::Running) {
-                // Update deployment with endpoint and gateway URL
-                let _: Option<Deployment> = self
-                    .db
-                    .db()
-                    .update(("deployments", deployment.id.to_string()))
-                    .merge(serde_json::json!({
-                        "status": DeploymentStatus::Running,
-                        "endpoint": status.endpoint,
-                        "gateway_url": status.gateway_url,
-                        "updated_at": chrono::Utc::now(),
-                    }))
+                deployment_repo
+                    .update_status_details(
+                        deployment.id,
+                        DeploymentStatus::Running,
+                        status.endpoint,
+                        status.gateway_url,
+                    )
                     .await?;
 
                 // Update agent status and link to deployment
@@ -209,16 +205,13 @@ impl DeploymentManager {
             let status = vps_provider.get_status(&deploy_result).await?;
 
             if matches!(status.status, DeploymentStatus::Running) {
-                let _: Option<Deployment> = self
-                    .db
-                    .db()
-                    .update(("deployments", deployment.id.to_string()))
-                    .merge(serde_json::json!({
-                        "status": DeploymentStatus::Running,
-                        "endpoint": status.endpoint,
-                        "gateway_url": status.gateway_url,
-                        "updated_at": chrono::Utc::now(),
-                    }))
+                deployment_repo
+                    .update_status_details(
+                        deployment.id,
+                        DeploymentStatus::Running,
+                        status.endpoint,
+                        status.gateway_url,
+                    )
                     .await?;
 
                 for id in &agent_ids {

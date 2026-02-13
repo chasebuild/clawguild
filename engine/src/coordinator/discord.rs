@@ -1,11 +1,20 @@
 use anyhow::Result;
+use crate::models::TaskStatus;
+use crate::storage::{repositories, Database};
 use reqwest::Client;
 use serde_json::json;
+use serenity::{
+    client::Client as SerenityClient,
+    model::channel::Message,
+    prelude::{Context, EventHandler, GatewayIntents},
+};
+use uuid::Uuid;
 
 #[derive(Clone)]
 pub struct DiscordClient {
     token: String,
     http_client: Client,
+    db: Database,
 }
 
 #[derive(Debug, Clone)]
@@ -16,18 +25,33 @@ pub enum ChannelType {
 }
 
 impl DiscordClient {
-    pub async fn new(token: String) -> Result<Self> {
+    pub async fn new(token: String, db: Database) -> Result<Self> {
         Ok(Self {
             token,
             http_client: Client::new(),
+            db,
         })
     }
 
     pub async fn start(&self) -> Result<()> {
-        // Discord event handlers would be implemented here
-        // For now, we use HTTP API for message sending
-        // Full event handling would require a WebSocket connection via serenity
-        tracing::info!("Discord client initialized and ready");
+        // Start gateway for inbound message handling while keeping HTTP for outbound messages.
+        let intents =
+            GatewayIntents::GUILD_MESSAGES | GatewayIntents::DIRECT_MESSAGES | GatewayIntents::MESSAGE_CONTENT;
+        let handler = DiscordEventHandler {
+            db: self.db.clone(),
+        };
+
+        let mut client = SerenityClient::builder(&self.token, intents)
+            .event_handler(handler)
+            .await?;
+
+        tokio::spawn(async move {
+            if let Err(error) = client.start().await {
+                tracing::error!("Discord gateway error: {}", error);
+            }
+        });
+
+        tracing::info!("Discord client initialized with gateway and HTTP API");
         Ok(())
     }
 
@@ -106,4 +130,61 @@ impl DiscordClient {
         self.send_to_channel_type(channel_id, ChannelType::MasterOrders, message)
             .await
     }
+}
+
+struct DiscordEventHandler {
+    db: Database,
+}
+
+#[serenity::async_trait]
+impl EventHandler for DiscordEventHandler {
+    async fn message(&self, ctx: Context, msg: Message) {
+        if msg.author.bot {
+            return;
+        }
+
+        if let Some((task_id, result)) = parse_task_complete(&msg.content) {
+            let repo = repositories::TaskRepository::new(self.db.db().clone());
+            let update = repo
+                .update_fields(task_id, Some(TaskStatus::Completed), Some(result.clone()))
+                .await;
+
+            match update {
+                Ok(_) => {
+                    let _ = msg
+                        .channel_id
+                        .say(&ctx.http, format!("Task {} marked completed.", task_id))
+                        .await;
+                }
+                Err(error) => {
+                    tracing::error!("Failed updating task {}: {}", task_id, error);
+                    let _ = msg
+                        .channel_id
+                        .say(&ctx.http, "Failed to update task status.")
+                        .await;
+                }
+            }
+        }
+    }
+}
+
+fn parse_task_complete(content: &str) -> Option<(Uuid, String)> {
+    let trimmed = content.trim();
+    if !trimmed.starts_with("!task-complete") {
+        return None;
+    }
+
+    let mut parts = trimmed.splitn(3, ' ');
+    let _ = parts.next();
+    let task_id = parts.next()?;
+    let result = parts.next().unwrap_or("").trim();
+
+    let task_id = Uuid::parse_str(task_id).ok()?;
+    let result = if result.is_empty() {
+        "Completed via Discord".to_string()
+    } else {
+        result.to_string()
+    };
+
+    Some((task_id, result))
 }

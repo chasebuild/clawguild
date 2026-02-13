@@ -111,6 +111,8 @@ pub struct DiscordChannels {
 pub struct Task {
     pub id: Uuid,
     pub team_id: Uuid,
+    /// When set, this task is a subtask of another task.
+    pub parent_task_id: Option<Uuid>,
     pub assigned_to: Option<Uuid>,
     pub status: TaskStatus,
     pub description: String,

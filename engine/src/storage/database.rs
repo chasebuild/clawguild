@@ -1,187 +1,138 @@
-use anyhow::Result;
-use std::sync::Arc;
-use surrealdb::engine::remote::ws::{Client, Ws};
-use surrealdb::Surreal;
+use anyhow::{Context, Result};
+use sqlx::postgres::PgPoolOptions;
+use sqlx::PgPool;
+use std::time::Duration;
 
 #[derive(Clone)]
 pub struct Database {
-    db: Arc<Surreal<Client>>,
+    pool: PgPool,
 }
 
 impl Database {
     pub async fn new(database_url: &str) -> Result<Self> {
-        // Parse connection string format: ws://localhost:8000 or http://localhost:8000
-        // Retry connection with exponential backoff
         eprintln!("Attempting to connect to database at: {}", database_url);
-        let mut retries = 5;
-        let mut delay = 1;
-        // Use WebSocket connection (SurrealDB's primary protocol)
-        // Ensure URL starts with ws:// or wss://
-        let ws_url = if database_url.starts_with("http://") {
-            database_url.replace("http://", "ws://")
-        } else if database_url.starts_with("https://") {
-            database_url.replace("https://", "wss://")
-        } else if !database_url.starts_with("ws://") && !database_url.starts_with("wss://") {
-            format!("ws://{}", database_url)
-        } else {
-            database_url.to_string()
-        };
-        eprintln!("Using WebSocket connection: {}", ws_url);
 
-        let db: Surreal<Client> = loop {
-            eprintln!("Trying to connect (attempt {})...", 6 - retries);
-
-            match tokio::time::timeout(
-                tokio::time::Duration::from_secs(30),
-                Surreal::new::<Ws>(&ws_url),
-            )
+        let pool = PgPoolOptions::new()
+            .max_connections(10)
+            .acquire_timeout(Duration::from_secs(30))
+            .connect(database_url)
             .await
-            {
-                Ok(Ok(db)) => {
-                    eprintln!("Database connection established");
-                    break db;
-                }
-                Ok(Err(e)) if retries > 0 => {
-                    eprintln!(
-                        "Failed to connect to database: {}, retrying in {}s... ({} retries left)",
-                        e, delay, retries
-                    );
-                    tokio::time::sleep(tokio::time::Duration::from_secs(delay)).await;
-                    retries -= 1;
-                    delay *= 2;
-                }
-                Err(_) if retries > 0 => {
-                    eprintln!(
-                        "Database connection timed out, retrying in {}s... ({} retries left)",
-                        delay, retries
-                    );
-                    tokio::time::sleep(tokio::time::Duration::from_secs(delay)).await;
-                    retries -= 1;
-                    delay *= 2;
-                }
-                Ok(Err(e)) => {
-                    return Err(anyhow::anyhow!(
-                        "Failed to connect to database after retries: {}",
-                        e
-                    ))
-                }
-                Err(_) => {
-                    return Err(anyhow::anyhow!(
-                        "Database connection timed out after all retries"
-                    ))
-                }
-            }
-        };
+            .with_context(|| format!("failed to connect to postgres at {}", database_url))?;
 
-        // Sign in (if credentials are provided in the URL or use default)
-        // For now, we'll use root credentials or no auth
-        // db.signin(surrealdb::opt::auth::Root {
-        //     username: "root",
-        //     password: "root",
-        // }).await?;
-
-        // Use namespace and database
-        db.use_ns("clawguild").use_db("clawguild").await?;
-
-        Ok(Self { db: Arc::new(db) })
+        Ok(Self { pool })
     }
 
-    pub fn db(&self) -> Surreal<Client> {
-        // Clone the Surreal instance - this works for both Ws and Http clients
-        (*self.db).clone()
+    pub fn db(&self) -> PgPool {
+        self.pool.clone()
     }
 
     pub async fn run_migrations(&self) -> Result<()> {
-        // SurrealDB doesn't need explicit table creation, but we can define schemas
-        // For now, we'll just ensure the database is ready
-        // SurrealDB will create records automatically
+        let mut tx = self.pool.begin().await?;
 
-        // Define schemas for better type safety (optional)
-        let _ = self.db.query(
+        sqlx::query(
             r#"
-            DEFINE TABLE agents SCHEMAFULL;
-            DEFINE FIELD id ON agents TYPE record(agents) | string;
-            DEFINE FIELD name ON agents TYPE string;
-            DEFINE FIELD role ON agents TYPE string ASSERT $value IN ['master', 'slave'];
-            DEFINE FIELD status ON agents TYPE string ASSERT $value IN ['pending', 'deploying', 'running', 'stopped', 'error'];
-            DEFINE FIELD deployment_id ON agents TYPE option<record(deployments) | string>;
-            DEFINE FIELD team_id ON agents TYPE option<record(teams) | string>;
-                DEFINE FIELD discord_bot_token ON agents TYPE option<string>;
-                DEFINE FIELD discord_channel_id ON agents TYPE option<string>;
-                DEFINE FIELD discord_channels ON agents TYPE option<object>;
-                DEFINE FIELD discord_channels.coordination_logs ON agents TYPE option<string>;
-                DEFINE FIELD discord_channels.slave_communication ON agents TYPE option<string>;
-                DEFINE FIELD discord_channels.master_orders ON agents TYPE option<string>;
-            DEFINE FIELD model_provider ON agents TYPE string ASSERT $value IN ['openclaw', 'anthropic', 'openai', 'byom'];
-            DEFINE FIELD model_api_key ON agents TYPE option<string>;
-            DEFINE FIELD model_endpoint ON agents TYPE option<string>;
-            DEFINE FIELD personality ON agents TYPE option<string>;
-            DEFINE FIELD skills ON agents TYPE array<string>;
-            DEFINE FIELD workspace_dir ON agents TYPE option<string>;
-            DEFINE FIELD responsibility ON agents TYPE option<string>;
-            DEFINE FIELD emoji ON agents TYPE option<string>;
-            DEFINE FIELD created_at ON agents TYPE datetime;
-            DEFINE FIELD updated_at ON agents TYPE datetime;
-            DEFINE INDEX idx_agents_team_id ON agents FIELDS team_id;
-            DEFINE INDEX idx_agents_deployment_id ON agents FIELDS deployment_id;
-            "#
-        ).await?;
-
-        let _ = self.db.query(
-            r#"
-            DEFINE TABLE deployments SCHEMAFULL;
-            DEFINE FIELD id ON deployments TYPE record(deployments) | string;
-            DEFINE FIELD agent_id ON deployments TYPE record(agents) | string;
-            DEFINE FIELD agent_ids ON deployments TYPE option<array<record(agents) | string>>;
-            DEFINE FIELD provider ON deployments TYPE string ASSERT $value IN ['railway', 'flyio', 'aws'];
-            DEFINE FIELD region ON deployments TYPE option<string>;
-            DEFINE FIELD status ON deployments TYPE string ASSERT $value IN ['pending', 'creating', 'running', 'stopped', 'failed'];
-            DEFINE FIELD provider_id ON deployments TYPE option<string>;
-            DEFINE FIELD endpoint ON deployments TYPE option<string>;
-            DEFINE FIELD gateway_url ON deployments TYPE option<string>;
-            DEFINE FIELD volume_id ON deployments TYPE option<string>;
-            DEFINE FIELD created_at ON deployments TYPE datetime;
-            DEFINE FIELD updated_at ON deployments TYPE datetime;
-            DEFINE INDEX idx_deployments_agent_id ON deployments FIELDS agent_id;
-            "#
-        ).await?;
-
-        let _ = self
-            .db
-            .query(
-                r#"
-            DEFINE TABLE teams SCHEMAFULL;
-            DEFINE FIELD id ON teams TYPE record(teams) | string;
-            DEFINE FIELD name ON teams TYPE string;
-            DEFINE FIELD master_id ON teams TYPE record(agents) | string;
-            DEFINE FIELD slave_ids ON teams TYPE array<record(agents) | string>;
-            DEFINE FIELD discord_channel_id ON teams TYPE string;
-            DEFINE FIELD discord_channels ON teams TYPE object;
-            DEFINE FIELD discord_channels.coordination_logs ON teams TYPE string;
-            DEFINE FIELD discord_channels.slave_communication ON teams TYPE string;
-            DEFINE FIELD discord_channels.master_orders ON teams TYPE string;
-            DEFINE FIELD created_at ON teams TYPE datetime;
-            DEFINE FIELD updated_at ON teams TYPE datetime;
+            CREATE TABLE IF NOT EXISTS agents (
+                id uuid PRIMARY KEY,
+                name text NOT NULL,
+                role text NOT NULL,
+                status text NOT NULL,
+                deployment_id uuid,
+                team_id uuid,
+                discord_bot_token text,
+                discord_channel_id text,
+                discord_channels jsonb,
+                model_provider text NOT NULL,
+                model_api_key text,
+                model_endpoint text,
+                personality text,
+                skills text[] NOT NULL DEFAULT '{}',
+                workspace_dir text,
+                responsibility text,
+                emoji text,
+                created_at timestamptz NOT NULL,
+                updated_at timestamptz NOT NULL
+            );
             "#,
-            )
+        )
+        .execute(&mut *tx)
+        .await?;
+
+        sqlx::query(
+            r#"
+            CREATE TABLE IF NOT EXISTS deployments (
+                id uuid PRIMARY KEY,
+                agent_id uuid NOT NULL,
+                agent_ids uuid[],
+                provider text NOT NULL,
+                region text,
+                status text NOT NULL,
+                provider_id text,
+                endpoint text,
+                gateway_url text,
+                volume_id text,
+                created_at timestamptz NOT NULL,
+                updated_at timestamptz NOT NULL
+            );
+            "#,
+        )
+        .execute(&mut *tx)
+        .await?;
+
+        sqlx::query(
+            r#"
+            CREATE TABLE IF NOT EXISTS teams (
+                id uuid PRIMARY KEY,
+                name text NOT NULL,
+                master_id uuid NOT NULL,
+                slave_ids uuid[] NOT NULL DEFAULT '{}',
+                discord_channel_id text NOT NULL,
+                discord_channels jsonb NOT NULL,
+                created_at timestamptz NOT NULL,
+                updated_at timestamptz NOT NULL
+            );
+            "#,
+        )
+        .execute(&mut *tx)
+        .await?;
+
+        sqlx::query(
+            r#"
+            CREATE TABLE IF NOT EXISTS tasks (
+                id uuid PRIMARY KEY,
+                team_id uuid NOT NULL,
+                parent_task_id uuid,
+                assigned_to uuid,
+                status text NOT NULL,
+                description text NOT NULL,
+                result text,
+                created_at timestamptz NOT NULL,
+                updated_at timestamptz NOT NULL
+            );
+            "#,
+        )
+        .execute(&mut *tx)
+        .await?;
+
+        sqlx::query("CREATE INDEX IF NOT EXISTS idx_agents_team_id ON agents(team_id);")
+            .execute(&mut *tx)
+            .await?;
+        sqlx::query("CREATE INDEX IF NOT EXISTS idx_agents_deployment_id ON agents(deployment_id);")
+            .execute(&mut *tx)
+            .await?;
+        sqlx::query("CREATE INDEX IF NOT EXISTS idx_deployments_agent_id ON deployments(agent_id);")
+            .execute(&mut *tx)
+            .await?;
+        sqlx::query("CREATE INDEX IF NOT EXISTS idx_tasks_team_id ON tasks(team_id);")
+            .execute(&mut *tx)
+            .await?;
+        sqlx::query("CREATE INDEX IF NOT EXISTS idx_tasks_assigned_to ON tasks(assigned_to);")
+            .execute(&mut *tx)
+            .await?;
+        sqlx::query("CREATE INDEX IF NOT EXISTS idx_tasks_parent_id ON tasks(parent_task_id);")
+            .execute(&mut *tx)
             .await?;
 
-        let _ = self.db.query(
-            r#"
-            DEFINE TABLE tasks SCHEMAFULL;
-            DEFINE FIELD id ON tasks TYPE record(tasks) | string;
-            DEFINE FIELD team_id ON tasks TYPE record(teams) | string;
-            DEFINE FIELD assigned_to ON tasks TYPE option<record(agents) | string>;
-            DEFINE FIELD status ON tasks TYPE string ASSERT $value IN ['pending', 'in_progress', 'completed', 'failed'];
-            DEFINE FIELD description ON tasks TYPE string;
-            DEFINE FIELD result ON tasks TYPE option<string>;
-            DEFINE FIELD created_at ON tasks TYPE datetime;
-            DEFINE FIELD updated_at ON tasks TYPE datetime;
-            DEFINE INDEX idx_tasks_team_id ON tasks FIELDS team_id;
-            DEFINE INDEX idx_tasks_assigned_to ON tasks FIELDS assigned_to;
-            "#
-        ).await?;
-
+        tx.commit().await?;
         Ok(())
     }
 }
