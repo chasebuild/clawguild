@@ -23,6 +23,10 @@ pub async fn create_router(
     };
 
     let router = Router::new()
+        .route(
+            "/",
+            axum::routing::get(handlers::get_server_health_with_state),
+        )
         .route("/api/teams", axum::routing::post(handlers::create_team))
         .route("/api/teams", axum::routing::get(handlers::list_teams))
         .route(

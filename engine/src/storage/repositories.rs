@@ -317,6 +317,29 @@ impl AgentRepository {
         Ok(())
     }
 
+    pub async fn update_runtime_config(
+        &self,
+        id: Uuid,
+        runtime_config: Option<serde_json::Value>,
+    ) -> Result<()> {
+        sqlx::query(
+            r#"
+            UPDATE agents
+            SET runtime_config = $2,
+                updated_at = $3
+            WHERE id = $1
+            "#,
+        )
+        .bind(id)
+        .bind(runtime_config.map(Json))
+        .bind(Utc::now())
+        .execute(&self.db)
+        .await
+        .context("failed to update agent runtime_config")?;
+
+        Ok(())
+    }
+
     pub async fn list_all(&self) -> Result<Vec<Agent>> {
         let rows: Vec<AgentRow> = sqlx::query_as(
             r#"

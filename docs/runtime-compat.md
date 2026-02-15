@@ -35,6 +35,12 @@ OpenClaw uses the generated `openclaw.json` based on agent fields. You can overr
     "discord": {
       "token": "...",
       "bindings": []
+    },
+    "telegram": {
+      "enabled": true,
+      "botToken": "...",
+      "dmPolicy": "pairing",
+      "groups": { "*": { "requireMention": true } }
     }
   },
   "models": {

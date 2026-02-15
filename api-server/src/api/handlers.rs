@@ -11,6 +11,7 @@ use engine::models::{
 };
 use engine::storage::Database;
 use serde::{Deserialize, Serialize};
+use serde_json::{json, Map, Value};
 use std::time::Instant;
 use uuid::Uuid;
 
@@ -31,6 +32,7 @@ pub struct CreateTeamRequest {
     pub slave_ids: Vec<Uuid>,
     pub discord_channel_id: String, // Legacy: single channel
     pub discord_channels: Option<DiscordChannels>, // New: multiple channels
+    pub telegram_settings: Option<TelegramSettings>,
 }
 
 #[derive(Serialize)]
@@ -108,6 +110,10 @@ pub async fn create_team(
             .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     }
 
+    if let Some(settings) = req.telegram_settings {
+        apply_telegram_settings_to_agents(&agent_repo, &settings, &team_agent_ids(&team)).await?;
+    }
+
     Ok(Json(TeamResponse {
         id: team.id,
         name: team.name,
@@ -160,11 +166,23 @@ pub struct CreateAgentRequest {
     pub emoji: Option<String>,
 }
 
+#[derive(Clone, Deserialize)]
+pub struct TelegramSettings {
+    pub enabled: Option<bool>,
+    pub bot_token: Option<String>,
+    pub dm_policy: Option<String>,
+    pub allow_from: Option<Vec<String>>,
+    pub group_policy: Option<String>,
+    pub group_allow_from: Option<Vec<String>>,
+    pub require_mention: Option<bool>,
+}
+
 #[derive(Deserialize)]
 pub struct DeployMultiRequest {
     pub agent_ids: Vec<Uuid>,
     pub provider: VpsProvider,
     pub region: Option<String>,
+    pub telegram_settings: Option<TelegramSettings>,
 }
 
 #[derive(Serialize)]
@@ -197,12 +215,22 @@ pub async fn create_agent(
         }
     }
 
+    let runtime = req.runtime.unwrap_or(AgentRuntime::OpenClaw);
+    let runtime_config = match runtime {
+        AgentRuntime::OpenClaw => {
+            let config = apply_openclaw_telegram_defaults(req.runtime_config);
+            validate_openclaw_telegram_config(&config)?;
+            Some(config)
+        }
+        _ => req.runtime_config,
+    };
+
     let agent = Agent {
         id: Uuid::new_v4(),
         name: req.name,
         role: req.role,
         status: AgentStatus::Pending,
-        runtime: req.runtime.unwrap_or(AgentRuntime::OpenClaw),
+        runtime,
         deployment_id: None,
         team_id: req.team_id,
         discord_bot_token: req.discord_bot_token,
@@ -214,7 +242,7 @@ pub async fn create_agent(
         personality: req.personality,
         skills: req.skills,
         workspace_dir: None,
-        runtime_config: req.runtime_config,
+        runtime_config,
         responsibility: req.responsibility,
         emoji: req.emoji,
         created_at: chrono::Utc::now(),
@@ -267,6 +295,218 @@ pub async fn create_agent(
         responsibility: agent.responsibility,
         emoji: agent.emoji,
     }))
+}
+
+fn apply_openclaw_telegram_defaults(config: Option<Value>) -> Value {
+    let defaults = json!({
+        "channels": {
+            "telegram": {
+                "enabled": false,
+                "dmPolicy": "pairing",
+                "groupPolicy": "allowlist",
+                "groups": { "*": { "requireMention": true } }
+            }
+        }
+    });
+    let mut merged = config.unwrap_or_else(|| json!({}));
+    merge_defaults(&mut merged, &defaults);
+    merged
+}
+
+fn apply_openclaw_telegram_settings(mut config: Value, settings: &TelegramSettings) -> Value {
+    let telegram = ensure_object_path(&mut config, &["channels", "telegram"]);
+    if let Some(enabled) = settings.enabled {
+        telegram.insert("enabled".to_string(), Value::Bool(enabled));
+    }
+    if let Some(token) = &settings.bot_token {
+        if !token.is_empty() {
+            telegram.insert("botToken".to_string(), Value::String(token.clone()));
+        }
+    }
+    if let Some(policy) = &settings.dm_policy {
+        telegram.insert("dmPolicy".to_string(), Value::String(policy.clone()));
+    }
+    if let Some(allow_from) = &settings.allow_from {
+        telegram.insert(
+            "allowFrom".to_string(),
+            Value::Array(allow_from.iter().cloned().map(Value::String).collect()),
+        );
+    }
+    if let Some(policy) = &settings.group_policy {
+        telegram.insert("groupPolicy".to_string(), Value::String(policy.clone()));
+    }
+    if let Some(allow_from) = &settings.group_allow_from {
+        telegram.insert(
+            "groupAllowFrom".to_string(),
+            Value::Array(allow_from.iter().cloned().map(Value::String).collect()),
+        );
+    }
+    if let Some(require_mention) = settings.require_mention {
+        let groups = ensure_object_path(telegram, &["groups"]);
+        let default_group = ensure_object_path(groups, &["*"]);
+        default_group.insert("requireMention".to_string(), Value::Bool(require_mention));
+    }
+    config
+}
+
+fn merge_defaults(base: &mut Value, defaults: &Value) {
+    match (base, defaults) {
+        (Value::Object(base_map), Value::Object(default_map)) => {
+            for (key, value) in default_map {
+                match base_map.get_mut(key) {
+                    Some(existing) => merge_defaults(existing, value),
+                    None => {
+                        base_map.insert(key.clone(), value.clone());
+                    }
+                }
+            }
+        }
+        (base_slot, default_val) => {
+            if base_slot.is_null() {
+                *base_slot = default_val.clone();
+            }
+        }
+    }
+}
+
+fn ensure_object_path<'a>(value: &'a mut Value, keys: &[&str]) -> &'a mut Map<String, Value> {
+    let mut current = value;
+    for key in keys {
+        if !current.is_object() {
+            *current = json!({});
+        }
+        let obj = current.as_object_mut().expect("object enforced above");
+        current = obj.entry((*key).to_string()).or_insert_with(|| json!({}));
+    }
+    if !current.is_object() {
+        *current = json!({});
+    }
+    current.as_object_mut().expect("object enforced above")
+}
+
+fn validate_openclaw_telegram_config(config: &Value) -> Result<(), StatusCode> {
+    let telegram = config
+        .get("channels")
+        .and_then(|channels| channels.get("telegram"));
+    let Some(telegram) = telegram else {
+        return Ok(());
+    };
+    let telegram_obj = telegram.as_object().ok_or(StatusCode::BAD_REQUEST)?;
+
+    let enabled = telegram_obj
+        .get("enabled")
+        .and_then(|value| value.as_bool())
+        .unwrap_or(false);
+
+    let dm_policy = telegram_obj
+        .get("dmPolicy")
+        .and_then(|value| value.as_str());
+    if let Some(policy) = dm_policy {
+        let valid = matches!(policy, "pairing" | "allowlist" | "open" | "disabled");
+        if !valid {
+            return Err(StatusCode::BAD_REQUEST);
+        }
+    }
+
+    let group_policy = telegram_obj
+        .get("groupPolicy")
+        .and_then(|value| value.as_str());
+    if let Some(policy) = group_policy {
+        let valid = matches!(policy, "open" | "allowlist" | "disabled");
+        if !valid {
+            return Err(StatusCode::BAD_REQUEST);
+        }
+    }
+
+    let allow_from = telegram_obj
+        .get("allowFrom")
+        .and_then(|value| value.as_array());
+    if enabled {
+        if let Some(policy) = dm_policy {
+            match policy {
+                "open" => {
+                    let has_star = allow_from
+                        .map(|items| items.iter().any(|item| item.as_str() == Some("*")))
+                        .unwrap_or(false);
+                    if !has_star {
+                        return Err(StatusCode::BAD_REQUEST);
+                    }
+                }
+                "allowlist" => {
+                    let has_any = allow_from.map(|items| !items.is_empty()).unwrap_or(false);
+                    if !has_any {
+                        return Err(StatusCode::BAD_REQUEST);
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+
+    let group_allow_from = telegram_obj
+        .get("groupAllowFrom")
+        .and_then(|value| value.as_array());
+    if enabled {
+        if let Some(policy) = group_policy {
+            if policy == "allowlist" {
+                let has_any = group_allow_from
+                    .map(|items| !items.is_empty())
+                    .unwrap_or(false)
+                    || allow_from.map(|items| !items.is_empty()).unwrap_or(false);
+                if !has_any {
+                    return Err(StatusCode::BAD_REQUEST);
+                }
+            }
+        }
+    }
+
+    if let Some(groups) = telegram_obj.get("groups") {
+        let groups_obj = groups.as_object().ok_or(StatusCode::BAD_REQUEST)?;
+        if let Some(default_group) = groups_obj.get("*") {
+            let default_obj = default_group.as_object().ok_or(StatusCode::BAD_REQUEST)?;
+            if let Some(require_mention) = default_obj.get("requireMention") {
+                if !require_mention.is_boolean() {
+                    return Err(StatusCode::BAD_REQUEST);
+                }
+            }
+        }
+    }
+
+    Ok(())
+}
+
+fn team_agent_ids(team: &Team) -> Vec<Uuid> {
+    let mut ids = Vec::with_capacity(team.slave_ids.len() + 1);
+    ids.push(team.master_id);
+    ids.extend(team.slave_ids.iter().copied());
+    ids
+}
+
+async fn apply_telegram_settings_to_agents(
+    agent_repo: &engine::storage::repositories::AgentRepository,
+    settings: &TelegramSettings,
+    agent_ids: &[Uuid],
+) -> Result<(), StatusCode> {
+    for agent_id in agent_ids {
+        let agent = agent_repo
+            .get_by_id(*agent_id)
+            .await
+            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
+            .ok_or(StatusCode::NOT_FOUND)?;
+        if agent.runtime != AgentRuntime::OpenClaw {
+            continue;
+        }
+        let base = apply_openclaw_telegram_defaults(Some(
+            agent.runtime_config.unwrap_or_else(|| json!({})),
+        ));
+        let config = apply_openclaw_telegram_settings(base, settings);
+        validate_openclaw_telegram_config(&config)?;
+        agent_repo
+            .update_runtime_config(agent.id, Some(config))
+            .await
+            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    }
+    Ok(())
 }
 
 pub async fn list_agents(
@@ -324,6 +564,29 @@ pub async fn deploy_agents_multi(
             .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
             .ok_or(StatusCode::NOT_FOUND)?;
         agents.push(agent);
+    }
+
+    if let Some(settings) = req.telegram_settings {
+        apply_telegram_settings_to_agents(
+            &agent_repo,
+            &settings,
+            &agents.iter().map(|agent| agent.id).collect::<Vec<_>>(),
+        )
+        .await?;
+
+        agents = agents
+            .into_iter()
+            .map(|mut agent| {
+                if agent.runtime == AgentRuntime::OpenClaw {
+                    let base = apply_openclaw_telegram_defaults(Some(
+                        agent.runtime_config.clone().unwrap_or_else(|| json!({})),
+                    ));
+                    let config = apply_openclaw_telegram_settings(base, &settings);
+                    agent.runtime_config = Some(config);
+                }
+                agent
+            })
+            .collect();
     }
 
     let deployment = state

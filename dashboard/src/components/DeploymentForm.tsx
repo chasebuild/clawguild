@@ -17,13 +17,77 @@ export function DeploymentForm({ onSuccess }: DeploymentFormProps) {
     model_provider: 'openclaw',
     skills: [],
   });
+  const [telegramEnabled, setTelegramEnabled] = useState(false);
+  const [telegramBotToken, setTelegramBotToken] = useState('');
+  const [telegramDmPolicy, setTelegramDmPolicy] = useState<
+    'pairing' | 'allowlist' | 'open' | 'disabled'
+  >('pairing');
+  const [telegramAllowFrom, setTelegramAllowFrom] = useState('');
+  const [telegramGroupPolicy, setTelegramGroupPolicy] = useState<'open' | 'allowlist' | 'disabled'>(
+    'allowlist',
+  );
+  const [telegramGroupAllowFrom, setTelegramGroupAllowFrom] = useState('');
+  const [telegramRequireMention, setTelegramRequireMention] = useState(true);
+
+  const parseAllowList = (value: string) =>
+    value
+      .split(',')
+      .map((entry) => entry.trim())
+      .filter((entry) => entry.length > 0);
+
+  const buildOpenClawRuntimeConfig = () => {
+    const allowFrom = parseAllowList(telegramAllowFrom);
+    const groupAllowFrom = parseAllowList(telegramGroupAllowFrom);
+    return {
+      channels: {
+        telegram: {
+          enabled: telegramEnabled,
+          botToken: telegramBotToken || undefined,
+          dmPolicy: telegramDmPolicy,
+          allowFrom: allowFrom.length > 0 ? allowFrom : undefined,
+          groupPolicy: telegramGroupPolicy,
+          groupAllowFrom: groupAllowFrom.length > 0 ? groupAllowFrom : undefined,
+          groups: { '*': { requireMention: telegramRequireMention } },
+        },
+      },
+    };
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (formData.runtime === 'openclaw' && telegramEnabled) {
+      if (!telegramBotToken) {
+        alert('Telegram bot token is required when Telegram is enabled.');
+        return;
+      }
+      const allowFrom = parseAllowList(telegramAllowFrom);
+      const groupAllowFrom = parseAllowList(telegramGroupAllowFrom);
+      if (telegramDmPolicy === 'allowlist' && allowFrom.length === 0) {
+        alert('DM allowlist is required when DM policy is allowlist.');
+        return;
+      }
+      if (telegramDmPolicy === 'open' && !allowFrom.includes('*')) {
+        alert('DM allowlist must include "*" when DM policy is open.');
+        return;
+      }
+      if (
+        telegramGroupPolicy === 'allowlist' &&
+        allowFrom.length === 0 &&
+        groupAllowFrom.length === 0
+      ) {
+        alert('Group allowlist is required when group policy is allowlist.');
+        return;
+      }
+    }
     setLoading(true);
 
     try {
-      await api.createAgent(formData);
+      const payload: CreateAgentRequest = {
+        ...formData,
+        runtime_config: formData.runtime === 'openclaw' ? buildOpenClawRuntimeConfig() : undefined,
+      };
+
+      await api.createAgent(payload);
       if (onSuccess) {
         onSuccess();
       }
@@ -36,6 +100,13 @@ export function DeploymentForm({ onSuccess }: DeploymentFormProps) {
         model_provider: 'openclaw',
         skills: [],
       });
+      setTelegramEnabled(false);
+      setTelegramBotToken('');
+      setTelegramDmPolicy('pairing');
+      setTelegramAllowFrom('');
+      setTelegramGroupPolicy('allowlist');
+      setTelegramGroupAllowFrom('');
+      setTelegramRequireMention(true);
     } catch (error) {
       console.error('Failed to create agent:', error);
       alert('Failed to create agent. Please try again.');
@@ -132,6 +203,107 @@ export function DeploymentForm({ onSuccess }: DeploymentFormProps) {
             onChange={(e) => setFormData({ ...formData, model_api_key: e.target.value })}
             className="w-full px-3 py-2 border rounded-md"
           />
+        </div>
+      )}
+
+      {formData.runtime === 'openclaw' && (
+        <div className="space-y-3 border rounded-xl p-4">
+          <div>
+            <label className="flex items-center gap-2 text-sm font-medium">
+              <input
+                type="checkbox"
+                checked={telegramEnabled}
+                onChange={(e) => setTelegramEnabled(e.target.checked)}
+              />
+              Enable Telegram
+            </label>
+            <p className="text-xs text-muted-foreground mt-1">
+              Configure DM and group behavior for the OpenClaw Telegram channel.
+            </p>
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-1">Telegram Bot Token</label>
+            <input
+              type="password"
+              value={telegramBotToken}
+              onChange={(e) => setTelegramBotToken(e.target.value)}
+              className="w-full px-3 py-2 border rounded-md"
+              placeholder="123456:ABC-DEF..."
+            />
+          </div>
+          <div className="grid gap-3 md:grid-cols-2">
+            <div>
+              <label className="block text-sm font-medium mb-1">DM Policy</label>
+              <select
+                value={telegramDmPolicy}
+                onChange={(e) =>
+                  setTelegramDmPolicy(
+                    e.target.value as 'pairing' | 'allowlist' | 'open' | 'disabled',
+                  )
+                }
+                className="w-full px-3 py-2 border rounded-md"
+              >
+                <option value="pairing">Pairing</option>
+                <option value="allowlist">Allowlist</option>
+                <option value="open">Open</option>
+                <option value="disabled">Disabled</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">Group Policy</label>
+              <select
+                value={telegramGroupPolicy}
+                onChange={(e) =>
+                  setTelegramGroupPolicy(e.target.value as 'open' | 'allowlist' | 'disabled')
+                }
+                className="w-full px-3 py-2 border rounded-md"
+              >
+                <option value="allowlist">Allowlist</option>
+                <option value="open">Open</option>
+                <option value="disabled">Disabled</option>
+              </select>
+            </div>
+          </div>
+          {(telegramDmPolicy === 'allowlist' || telegramDmPolicy === 'open') && (
+            <div>
+              <label className="block text-sm font-medium mb-1">DM Allowlist</label>
+              <input
+                type="text"
+                value={telegramAllowFrom}
+                onChange={(e) => setTelegramAllowFrom(e.target.value)}
+                className="w-full px-3 py-2 border rounded-md"
+                placeholder="telegram:12345, *"
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                Comma-separated. Use `*` for open DM policy.
+              </p>
+            </div>
+          )}
+          {telegramGroupPolicy === 'allowlist' && (
+            <div>
+              <label className="block text-sm font-medium mb-1">Group Allowlist</label>
+              <input
+                type="text"
+                value={telegramGroupAllowFrom}
+                onChange={(e) => setTelegramGroupAllowFrom(e.target.value)}
+                className="w-full px-3 py-2 border rounded-md"
+                placeholder="telegram:12345"
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                Leave blank to reuse the DM allowlist.
+              </p>
+            </div>
+          )}
+          <div>
+            <label className="flex items-center gap-2 text-sm font-medium">
+              <input
+                type="checkbox"
+                checked={telegramRequireMention}
+                onChange={(e) => setTelegramRequireMention(e.target.checked)}
+              />
+              Require @mention in groups
+            </label>
+          </div>
         </div>
       )}
 

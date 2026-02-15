@@ -40,6 +40,16 @@ export interface CreateAgentRequest {
   emoji?: string;
 }
 
+export interface TelegramSettings {
+  enabled?: boolean;
+  bot_token?: string;
+  dm_policy?: 'pairing' | 'allowlist' | 'open' | 'disabled';
+  allow_from?: string[];
+  group_policy?: 'open' | 'allowlist' | 'disabled';
+  group_allow_from?: string[];
+  require_mention?: boolean;
+}
+
 export interface Team {
   id: string;
   name: string;
@@ -60,6 +70,7 @@ export interface CreateTeamRequest {
   slave_ids: string[];
   discord_channel_id: string;
   discord_channels?: DiscordChannels;
+  telegram_settings?: TelegramSettings;
 }
 
 export const api = {
@@ -135,6 +146,7 @@ export const api = {
     agent_ids: string[];
     provider: 'railway' | 'flyio' | 'aws';
     region?: string;
+    telegram_settings?: TelegramSettings;
   }): Promise<DeploymentResponse> {
     const response = await client.post<DeploymentResponse>('/api/agents/deploy-multi', data);
     return response.data;

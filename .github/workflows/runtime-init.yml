@@ -1,0 +1,30 @@
+name: Runtime Init Scripts
+
+on:
+  push:
+    paths:
+      - "claws/**/scripts/*.sh"
+      - "claws/**/src/lib.rs"
+      - "scripts/ci/**"
+      - ".github/workflows/runtime-init.yml"
+  pull_request:
+    paths:
+      - "claws/**/scripts/*.sh"
+      - "claws/**/src/lib.rs"
+      - "scripts/ci/**"
+      - ".github/workflows/runtime-init.yml"
+
+jobs:
+  runtime-init:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run init scripts in container
+        run: |
+          docker run --rm \
+            -v "$PWD:/repo" \
+            -w /repo \
+            ubuntu:22.04 \
+            bash /repo/scripts/ci/test-runtime-init.sh
