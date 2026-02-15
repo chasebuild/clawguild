@@ -6,6 +6,9 @@ use claws_runtime_core::{
 use serde_json::{json, Value};
 use std::collections::BTreeMap;
 
+pub mod channel_adapters;
+
+use channel_adapters::apply_channel_adapters;
 pub struct OpenClawRuntime;
 
 impl Default for OpenClawRuntime {
@@ -115,48 +118,6 @@ fn build_config_json(ctx: &RuntimeContext) -> Result<Value> {
         }
     });
 
-    let mut all_bindings = Vec::new();
-    let mut bot_token: Option<String> = None;
-
-    for a in &agents {
-        if let Some(token) = &a.discord_bot_token {
-            bot_token.get_or_insert_with(|| token.clone());
-        }
-        if let Some(channels) = &a.discord_channels {
-            all_bindings.push(channel_binding(
-                channels.coordination_logs.clone(),
-                &a.id,
-                "coordination_logs",
-            ));
-            all_bindings.push(channel_binding(
-                channels.slave_communication.clone(),
-                &a.id,
-                "slave_communication",
-            ));
-            all_bindings.push(channel_binding(
-                channels.master_orders.clone(),
-                &a.id,
-                "master_orders",
-            ));
-        } else if let Some(channel_id) = &a.discord_channel_id {
-            all_bindings.push(json!({
-                "channelId": channel_id,
-                "agentId": a.id,
-            }));
-        }
-    }
-
-    if let Some(token) = bot_token {
-        if !all_bindings.is_empty() {
-            config["channels"] = json!({
-                "discord": {
-                    "token": token,
-                    "bindings": all_bindings,
-                }
-            });
-        }
-    }
-
     let first = agents.first().unwrap_or(&ctx.primary);
     match first.model_provider {
         ModelProvider::Anthropic => {
@@ -186,19 +147,13 @@ fn build_config_json(ctx: &RuntimeContext) -> Result<Value> {
         ModelProvider::OpenClaw => {}
     }
 
+    let mut channel_defaults = apply_channel_adapters(ctx);
     if let Some(runtime_config) = &first.runtime_config {
-        merge_json(&mut config, runtime_config);
+        merge_json(&mut channel_defaults, runtime_config);
     }
+    merge_json(&mut config, &channel_defaults);
 
     Ok(config)
-}
-
-fn channel_binding(channel_id: String, agent_id: &str, purpose: &str) -> Value {
-    json!({
-        "channelId": channel_id,
-        "agentId": agent_id,
-        "purpose": purpose,
-    })
 }
 
 fn merge_json(base: &mut Value, overlay: &Value) {

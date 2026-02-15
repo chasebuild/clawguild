@@ -5,7 +5,7 @@ use crate::models::{
 use anyhow::{Context, Result};
 use chrono::{DateTime, Utc};
 use sqlx::types::Json;
-use sqlx::{FromRow, PgPool};
+use sqlx::{FromRow, PgPool, Postgres, Transaction};
 use uuid::Uuid;
 
 #[derive(FromRow)]
@@ -298,6 +298,36 @@ impl AgentRepository {
         Ok(())
     }
 
+    pub async fn update_team_membership_tx(
+        &self,
+        tx: &mut Transaction<'_, Postgres>,
+        id: Uuid,
+        team_id: Option<Uuid>,
+        discord_channels: Option<DiscordChannels>,
+        discord_channel_id: Option<String>,
+    ) -> Result<()> {
+        sqlx::query(
+            r#"
+            UPDATE agents
+            SET team_id = $2,
+                discord_channels = $3,
+                discord_channel_id = $4,
+                updated_at = $5
+            WHERE id = $1
+            "#,
+        )
+        .bind(id)
+        .bind(team_id)
+        .bind(discord_channels.map(Json))
+        .bind(discord_channel_id)
+        .bind(Utc::now())
+        .execute(tx.as_mut())
+        .await
+        .context("failed to update agent team membership")?;
+
+        Ok(())
+    }
+
     pub async fn update_role(&self, id: Uuid, role: AgentRole) -> Result<()> {
         sqlx::query(
             r#"
@@ -334,6 +364,54 @@ impl AgentRepository {
         .bind(runtime_config.map(Json))
         .bind(Utc::now())
         .execute(&self.db)
+        .await
+        .context("failed to update agent runtime_config")?;
+
+        Ok(())
+    }
+
+    pub async fn update_role_tx(
+        &self,
+        tx: &mut Transaction<'_, Postgres>,
+        id: Uuid,
+        role: AgentRole,
+    ) -> Result<()> {
+        sqlx::query(
+            r#"
+            UPDATE agents
+            SET role = $2,
+                updated_at = $3
+            WHERE id = $1
+            "#,
+        )
+        .bind(id)
+        .bind(agent_role_to_str(&role))
+        .bind(Utc::now())
+        .execute(tx.as_mut())
+        .await
+        .context("failed to update agent role")?;
+
+        Ok(())
+    }
+
+    pub async fn update_runtime_config_tx(
+        &self,
+        tx: &mut Transaction<'_, Postgres>,
+        id: Uuid,
+        runtime_config: Option<serde_json::Value>,
+    ) -> Result<()> {
+        sqlx::query(
+            r#"
+            UPDATE agents
+            SET runtime_config = $2,
+                updated_at = $3
+            WHERE id = $1
+            "#,
+        )
+        .bind(id)
+        .bind(runtime_config.map(Json))
+        .bind(Utc::now())
+        .execute(tx.as_mut())
         .await
         .context("failed to update agent runtime_config")?;
 
@@ -598,6 +676,57 @@ impl TeamRepository {
         .bind(slave_ids)
         .bind(Utc::now())
         .execute(&self.db)
+        .await
+        .context("failed to update team members")?;
+
+        Ok(())
+    }
+
+    pub async fn create_tx(&self, tx: &mut Transaction<'_, Postgres>, team: &Team) -> Result<()> {
+        sqlx::query(
+            r#"
+            INSERT INTO teams (
+                id, name, master_id, slave_ids, discord_channel_id, discord_channels, created_at, updated_at
+            )
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+            "#,
+        )
+        .bind(team.id)
+        .bind(&team.name)
+        .bind(team.master_id)
+        .bind(&team.slave_ids)
+        .bind(&team.discord_channel_id)
+        .bind(Json(team.discord_channels.clone()))
+        .bind(team.created_at)
+        .bind(team.updated_at)
+        .execute(tx.as_mut())
+        .await
+        .context("failed to create team")?;
+
+        Ok(())
+    }
+
+    pub async fn update_members_tx(
+        &self,
+        tx: &mut Transaction<'_, Postgres>,
+        id: Uuid,
+        master_id: Uuid,
+        slave_ids: Vec<Uuid>,
+    ) -> Result<()> {
+        sqlx::query(
+            r#"
+            UPDATE teams
+            SET master_id = $2,
+                slave_ids = $3,
+                updated_at = $4
+            WHERE id = $1
+            "#,
+        )
+        .bind(id)
+        .bind(master_id)
+        .bind(slave_ids)
+        .bind(Utc::now())
+        .execute(tx.as_mut())
         .await
         .context("failed to update team members")?;
 

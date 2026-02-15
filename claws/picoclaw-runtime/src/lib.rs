@@ -3,6 +3,9 @@ use claws_runtime_core::{runtime_name, ClawRuntime, RuntimeContext, RuntimeKind,
 use serde_json::Value;
 use std::collections::BTreeMap;
 
+mod channel_adapters;
+
+use channel_adapters::apply_channel_adapters;
 pub struct PicoClawRuntime;
 
 impl Default for PicoClawRuntime {
@@ -56,7 +59,12 @@ fn runtime_settings(agent: &claws_runtime_core::RuntimeAgent) -> PicoClawSetting
     let mut openrouter_api_key = agent.model_api_key.clone();
     let mut discord_token = agent.discord_bot_token.clone();
 
-    if let Some(Value::Object(map)) = agent.runtime_config.as_ref() {
+    let mut merged_config = apply_channel_adapters(agent);
+    if let Some(runtime_config) = &agent.runtime_config {
+        merge_json(&mut merged_config, runtime_config);
+    }
+
+    if let Some(map) = merged_config.as_object() {
         if let Some(Value::String(value)) = map.get("openrouter_api_key") {
             openrouter_api_key = Some(value.clone());
         }
@@ -68,5 +76,18 @@ fn runtime_settings(agent: &claws_runtime_core::RuntimeAgent) -> PicoClawSetting
     PicoClawSettings {
         openrouter_api_key,
         discord_token,
+    }
+}
+
+fn merge_json(base: &mut Value, overlay: &Value) {
+    match (base, overlay) {
+        (Value::Object(base_map), Value::Object(overlay_map)) => {
+            for (key, value) in overlay_map {
+                merge_json(base_map.entry(key.clone()).or_insert(Value::Null), value);
+            }
+        }
+        (base_slot, overlay_val) => {
+            *base_slot = overlay_val.clone();
+        }
     }
 }
