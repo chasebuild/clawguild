@@ -56,12 +56,12 @@ impl<'a> TeamService<'a> {
         team_repo
             .create_tx(&mut tx, &team)
             .await
-            .map_err(|err| AppError::Internal(err.into()))?;
+            .map_err(AppError::Internal)?;
 
         agent_repo
             .update_role_tx(&mut tx, team.master_id, AgentRole::Master)
             .await
-            .map_err(|err| AppError::Internal(err.into()))?;
+            .map_err(AppError::Internal)?;
         agent_repo
             .update_team_membership_tx(
                 &mut tx,
@@ -71,13 +71,13 @@ impl<'a> TeamService<'a> {
                 Some(team.discord_channel_id.clone()),
             )
             .await
-            .map_err(|err| AppError::Internal(err.into()))?;
+            .map_err(AppError::Internal)?;
 
         for slave_id in &team.slave_ids {
             agent_repo
                 .update_role_tx(&mut tx, *slave_id, AgentRole::Slave)
                 .await
-                .map_err(|err| AppError::Internal(err.into()))?;
+                .map_err(AppError::Internal)?;
             agent_repo
                 .update_team_membership_tx(
                     &mut tx,
@@ -87,7 +87,7 @@ impl<'a> TeamService<'a> {
                     Some(team.discord_channel_id.clone()),
                 )
                 .await
-                .map_err(|err| AppError::Internal(err.into()))?;
+                .map_err(AppError::Internal)?;
         }
 
         if let Some(settings) = req.telegram_settings {
@@ -113,10 +113,7 @@ impl<'a> TeamService<'a> {
 
     pub async fn list_teams(&self) -> Result<Vec<TeamResponse>, AppError> {
         let repo = TeamRepository::new(self.state.db.db().clone());
-        let teams = repo
-            .list_all()
-            .await
-            .map_err(|err| AppError::Internal(err.into()))?;
+        let teams = repo.list_all().await.map_err(AppError::Internal)?;
 
         Ok(teams
             .into_iter()
@@ -142,12 +139,12 @@ impl<'a> TeamService<'a> {
         let team = team_repo
             .get_by_id(team_id)
             .await
-            .map_err(|err| AppError::Internal(err.into()))?
+            .map_err(AppError::Internal)?
             .ok_or_else(|| AppError::NotFound("team not found".to_string()))?;
         let agent = agent_repo
             .get_by_id(agent_id)
             .await
-            .map_err(|err| AppError::Internal(err.into()))?
+            .map_err(AppError::Internal)?
             .ok_or_else(|| AppError::NotFound("agent not found".to_string()))?;
 
         let mut slave_ids = team.slave_ids.clone();
@@ -172,12 +169,12 @@ impl<'a> TeamService<'a> {
         team_repo
             .update_members_tx(&mut tx, team.id, master_id, slave_ids.clone())
             .await
-            .map_err(|err| AppError::Internal(err.into()))?;
+            .map_err(AppError::Internal)?;
 
         agent_repo
             .update_role_tx(&mut tx, agent.id, role)
             .await
-            .map_err(|err| AppError::Internal(err.into()))?;
+            .map_err(AppError::Internal)?;
         agent_repo
             .update_team_membership_tx(
                 &mut tx,
@@ -187,7 +184,7 @@ impl<'a> TeamService<'a> {
                 Some(team.discord_channel_id.clone()),
             )
             .await
-            .map_err(|err| AppError::Internal(err.into()))?;
+            .map_err(AppError::Internal)?;
 
         tx.commit()
             .await
@@ -209,7 +206,7 @@ impl<'a> TeamService<'a> {
         let team = team_repo
             .get_by_id(team_id)
             .await
-            .map_err(|err| AppError::Internal(err.into()))?
+            .map_err(AppError::Internal)?
             .ok_or_else(|| AppError::NotFound("team not found".to_string()))?;
 
         let mut members = Vec::new();
@@ -220,7 +217,7 @@ impl<'a> TeamService<'a> {
             if let Some(agent) = agent_repo
                 .get_by_id(agent_id)
                 .await
-                .map_err(|err| AppError::Internal(err.into()))?
+                .map_err(AppError::Internal)?
             {
                 members.push(TeamRosterMember {
                     id: agent.id,
@@ -252,7 +249,7 @@ async fn fetch_agents(
         let agent = agent_repo
             .get_by_id(*agent_id)
             .await
-            .map_err(|err| AppError::Internal(err.into()))?
+            .map_err(AppError::Internal)?
             .ok_or_else(|| AppError::NotFound("agent not found".to_string()))?;
         agents.push(agent);
     }

@@ -68,7 +68,7 @@ impl OpenClawConfig {
             .map_err(|err| AppError::BadRequest(format!("invalid openclaw runtime_config: {err}")))
     }
 
-    pub fn to_value(self) -> Result<Value, AppError> {
+    pub fn to_value(&self) -> Result<Value, AppError> {
         serde_json::to_value(self).map_err(|err| AppError::Internal(err.into()))
     }
 
@@ -107,9 +107,7 @@ impl OpenClawConfig {
         }
         if let Some(require_mention) = settings.require_mention {
             let groups = telegram.groups.get_or_insert_with(HashMap::new);
-            let entry = groups
-                .entry("*".to_string())
-                .or_insert_with(TelegramGroupConfig::default);
+            let entry = groups.entry("*".to_string()).or_default();
             entry.require_mention = Some(require_mention);
         }
     }
@@ -133,7 +131,7 @@ impl OpenClawConfig {
         }
 
         if enabled {
-            let allow_from = telegram.allow_from.as_ref().map(Vec::as_slice);
+            let allow_from = telegram.allow_from.as_deref();
             if let Some(policy) = dm_policy {
                 match policy {
                     "open" => {
@@ -233,6 +231,7 @@ pub fn openclaw_telegram_defaults_from_adapters(
     OpenClawConfig::from_value(Some(value))
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn openclaw_context_from_request(
     agent_id: Uuid,
     name: &str,
@@ -324,7 +323,7 @@ pub async fn apply_telegram_settings_to_agents(
         agent_repo
             .update_runtime_config(agent.id, Some(config.to_value()?))
             .await
-            .map_err(|err| AppError::Internal(err.into()))?;
+            .map_err(AppError::Internal)?;
     }
     Ok(())
 }
@@ -348,7 +347,7 @@ pub async fn apply_telegram_settings_to_agents_tx(
         agent_repo
             .update_runtime_config_tx(tx, agent.id, Some(config.to_value()?))
             .await
-            .map_err(|err| AppError::Internal(err.into()))?;
+            .map_err(AppError::Internal)?;
     }
     Ok(())
 }

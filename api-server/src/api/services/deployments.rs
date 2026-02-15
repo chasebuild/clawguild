@@ -15,10 +15,7 @@ impl<'a> DeploymentService<'a> {
 
     pub async fn list_deployments(&self) -> Result<Vec<Deployment>, AppError> {
         let repo = DeploymentRepository::new(self.state.db.db().clone());
-        let deployments = repo
-            .list_all()
-            .await
-            .map_err(|err| AppError::Internal(err.into()))?;
+        let deployments = repo.list_all().await.map_err(AppError::Internal)?;
         Ok(deployments)
     }
 
@@ -26,7 +23,7 @@ impl<'a> DeploymentService<'a> {
         let repo = DeploymentRepository::new(self.state.db.db().clone());
         repo.get_by_id(id)
             .await
-            .map_err(|err| AppError::Internal(err.into()))?
+            .map_err(AppError::Internal)?
             .ok_or_else(|| AppError::NotFound("deployment not found".to_string()))
     }
 
@@ -39,7 +36,7 @@ impl<'a> DeploymentService<'a> {
         let deployment = repo
             .get_by_id(id)
             .await
-            .map_err(|err| AppError::Internal(err.into()))?
+            .map_err(AppError::Internal)?
             .ok_or_else(|| AppError::NotFound("deployment not found".to_string()))?;
 
         let provider = self
@@ -60,6 +57,6 @@ impl<'a> DeploymentService<'a> {
         provider
             .get_logs(&deployment_id, lines)
             .await
-            .map_err(|err| AppError::Internal(err.into()))
+            .map_err(AppError::Internal)
     }
 }

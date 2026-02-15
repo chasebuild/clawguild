@@ -19,7 +19,7 @@ impl<'a> TaskService<'a> {
         let agent = agent_repo
             .get_by_id(agent_id)
             .await
-            .map_err(|err| AppError::Internal(err.into()))?
+            .map_err(AppError::Internal)?
             .ok_or_else(|| AppError::NotFound("agent not found".to_string()))?;
 
         let team_id = agent
@@ -39,17 +39,14 @@ impl<'a> TaskService<'a> {
         };
 
         let task_repo = TaskRepository::new(self.state.db.db().clone());
-        task_repo
-            .create(&task)
-            .await
-            .map_err(|err| AppError::Internal(err.into()))?;
+        task_repo.create(&task).await.map_err(AppError::Internal)?;
 
         if matches!(agent.role, AgentRole::Master) {
             let team_repo = TeamRepository::new(self.state.db.db().clone());
             let team = team_repo
                 .get_by_id(team_id)
                 .await
-                .map_err(|err| AppError::Internal(err.into()))?
+                .map_err(AppError::Internal)?
                 .ok_or_else(|| AppError::NotFound("team not found".to_string()))?;
 
             self.state
@@ -57,12 +54,12 @@ impl<'a> TaskService<'a> {
                 .master()
                 .delegate_task(&team, &task)
                 .await
-                .map_err(|err| AppError::Internal(err.into()))?;
+                .map_err(AppError::Internal)?;
 
             task_repo
                 .update_fields(task.id, Some(TaskStatus::InProgress), None)
                 .await
-                .map_err(|err| AppError::Internal(err.into()))?;
+                .map_err(AppError::Internal)?;
             task.status = TaskStatus::InProgress;
         }
 
@@ -74,7 +71,7 @@ impl<'a> TaskService<'a> {
         let tasks = task_repo
             .get_by_agent_id(agent_id)
             .await
-            .map_err(|err| AppError::Internal(err.into()))?;
+            .map_err(AppError::Internal)?;
         Ok(tasks)
     }
 
@@ -87,7 +84,7 @@ impl<'a> TaskService<'a> {
         let updated = task_repo
             .update_fields(task_id, req.status, req.result)
             .await
-            .map_err(|err| AppError::Internal(err.into()))?
+            .map_err(AppError::Internal)?
             .ok_or_else(|| AppError::NotFound("task not found".to_string()))?;
         Ok(updated)
     }
@@ -97,13 +94,13 @@ impl<'a> TaskService<'a> {
         let task = task_repo
             .get_by_id(task_id)
             .await
-            .map_err(|err| AppError::Internal(err.into()))?
+            .map_err(AppError::Internal)?
             .ok_or_else(|| AppError::NotFound("task not found".to_string()))?;
 
         let subtasks = task_repo
             .get_by_parent_id(task_id)
             .await
-            .map_err(|err| AppError::Internal(err.into()))?;
+            .map_err(AppError::Internal)?;
 
         let mut results = vec![task];
         results.extend(subtasks);

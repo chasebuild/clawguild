@@ -27,7 +27,7 @@ impl<'a> AgentService<'a> {
             let team = team_repo
                 .get_by_id(team_id)
                 .await
-                .map_err(|err| AppError::Internal(err.into()))?
+                .map_err(AppError::Internal)?
                 .ok_or_else(|| AppError::NotFound("team not found".to_string()))?;
             discord_channels = Some(team.discord_channels);
             if discord_channel_id.is_none() {
@@ -89,14 +89,14 @@ impl<'a> AgentService<'a> {
         agent_repo
             .create(&agent)
             .await
-            .map_err(|err| AppError::Internal(err.into()))?;
+            .map_err(AppError::Internal)?;
 
         if let Some(team_id) = agent.team_id {
             let team_repo = TeamRepository::new(self.state.db.db().clone());
             let team = team_repo
                 .get_by_id(team_id)
                 .await
-                .map_err(|err| AppError::Internal(err.into()))?
+                .map_err(AppError::Internal)?
                 .ok_or_else(|| AppError::NotFound("team not found".to_string()))?;
 
             let mut slave_ids = team.slave_ids.clone();
@@ -112,14 +112,14 @@ impl<'a> AgentService<'a> {
             team_repo
                 .update_members(team.id, master_id, slave_ids)
                 .await
-                .map_err(|err| AppError::Internal(err.into()))?;
+                .map_err(AppError::Internal)?;
         }
 
         self.state
             .deployment_manager
             .deploy_agent(agent.clone(), req.provider, req.region)
             .await
-            .map_err(|err| AppError::Internal(err.into()))?;
+            .map_err(AppError::Internal)?;
 
         Ok(AgentResponse {
             id: agent.id,
@@ -134,10 +134,7 @@ impl<'a> AgentService<'a> {
 
     pub async fn list_agents(&self) -> Result<Vec<AgentResponse>, AppError> {
         let repo = AgentRepository::new(self.state.db.db().clone());
-        let agents = repo
-            .list_all()
-            .await
-            .map_err(|err| AppError::Internal(err.into()))?;
+        let agents = repo.list_all().await.map_err(AppError::Internal)?;
 
         Ok(agents
             .into_iter()
@@ -159,7 +156,7 @@ impl<'a> AgentService<'a> {
             .deployment_manager
             .get_agent_status(id)
             .await
-            .map_err(|err| AppError::Internal(err.into()))?;
+            .map_err(AppError::Internal)?;
         Ok(status)
     }
 
@@ -168,7 +165,7 @@ impl<'a> AgentService<'a> {
             .deployment_manager
             .destroy_agent(id)
             .await
-            .map_err(|err| AppError::Internal(err.into()))?;
+            .map_err(AppError::Internal)?;
         Ok(())
     }
 
@@ -188,7 +185,7 @@ impl<'a> AgentService<'a> {
             let agent = agent_repo
                 .get_by_id(*id)
                 .await
-                .map_err(|err| AppError::Internal(err.into()))?
+                .map_err(AppError::Internal)?
                 .ok_or_else(|| AppError::NotFound("agent not found".to_string()))?;
             agents.push(agent);
         }
@@ -213,7 +210,7 @@ impl<'a> AgentService<'a> {
             .deployment_manager
             .deploy_agents_multi(agents, req.provider, req.region)
             .await
-            .map_err(|err| AppError::Internal(err.into()))?;
+            .map_err(AppError::Internal)?;
 
         Ok(deployment)
     }
