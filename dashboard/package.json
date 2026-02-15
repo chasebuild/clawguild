@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "format": "pnpm exec prettier --write ."
+    "format": "pnpm exec prettier --write \"**/*.{ts,tsx}\""
   },
   "dependencies": {
     "react": "^18.2.0",

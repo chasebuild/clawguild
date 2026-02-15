@@ -17,7 +17,7 @@ install: install-rust install-frontend
 
 # Run database migrations
 migrate:
-    @echo "Migrations run automatically on startup"
+    @bash infra/scripts/migrate.sh
 
 # Start Postgres (requires Docker Compose)
 db-start:
@@ -91,7 +91,7 @@ lint:
 # Format code (entire monorepo)
 fmt:
     cargo fmt --all
-    pnpm exec prettier --write .
+    pnpm exec prettier --write "**/*.{ts,tsx}"
 
 # Backwards-compatible alias
 format: fmt

@@ -16,11 +16,11 @@
     "prettier": "^3.3.3"
   },
   "lint-staged": {
-    "dashboard/**/*.{js,jsx,ts,tsx}": [
+    "dashboard/**/*.{ts,tsx}": [
       "pnpm -C dashboard exec next lint --file",
       "prettier --write"
     ],
-    "**/*.{js,jsx,ts,tsx,css,md,json,yml,yaml,html,toml}": [
+    "**/*.{ts,tsx}": [
       "prettier --write"
     ],
     "**/*.rs": [
