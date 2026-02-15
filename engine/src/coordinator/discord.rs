@@ -1,6 +1,6 @@
-use anyhow::Result;
 use crate::models::TaskStatus;
 use crate::storage::{repositories, Database};
+use anyhow::Result;
 use reqwest::Client;
 use serde_json::json;
 use serenity::{
@@ -35,8 +35,9 @@ impl DiscordClient {
 
     pub async fn start(&self) -> Result<()> {
         // Start gateway for inbound message handling while keeping HTTP for outbound messages.
-        let intents =
-            GatewayIntents::GUILD_MESSAGES | GatewayIntents::DIRECT_MESSAGES | GatewayIntents::MESSAGE_CONTENT;
+        let intents = GatewayIntents::GUILD_MESSAGES
+            | GatewayIntents::DIRECT_MESSAGES
+            | GatewayIntents::MESSAGE_CONTENT;
         let handler = DiscordEventHandler {
             db: self.db.clone(),
         };

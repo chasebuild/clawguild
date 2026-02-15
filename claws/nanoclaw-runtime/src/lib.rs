@@ -1,11 +1,15 @@
 use anyhow::Result;
-use claws_runtime_core::{
-    runtime_name, ClawRuntime, RuntimeContext, RuntimeKind, RuntimePlan,
-};
+use claws_runtime_core::{runtime_name, ClawRuntime, RuntimeContext, RuntimeKind, RuntimePlan};
 use serde_json::Value;
 use std::collections::BTreeMap;
 
 pub struct NanoClawRuntime;
+
+impl Default for NanoClawRuntime {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 impl NanoClawRuntime {
     pub fn new() -> Self {

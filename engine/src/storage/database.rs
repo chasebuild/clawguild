@@ -128,12 +128,16 @@ impl Database {
         sqlx::query("CREATE INDEX IF NOT EXISTS idx_agents_team_id ON agents(team_id);")
             .execute(&mut *tx)
             .await?;
-        sqlx::query("CREATE INDEX IF NOT EXISTS idx_agents_deployment_id ON agents(deployment_id);")
-            .execute(&mut *tx)
-            .await?;
-        sqlx::query("CREATE INDEX IF NOT EXISTS idx_deployments_agent_id ON deployments(agent_id);")
-            .execute(&mut *tx)
-            .await?;
+        sqlx::query(
+            "CREATE INDEX IF NOT EXISTS idx_agents_deployment_id ON agents(deployment_id);",
+        )
+        .execute(&mut *tx)
+        .await?;
+        sqlx::query(
+            "CREATE INDEX IF NOT EXISTS idx_deployments_agent_id ON deployments(agent_id);",
+        )
+        .execute(&mut *tx)
+        .await?;
         sqlx::query("CREATE INDEX IF NOT EXISTS idx_tasks_team_id ON tasks(team_id);")
             .execute(&mut *tx)
             .await?;

@@ -19,6 +19,12 @@ pub struct RuntimeRegistry {
     nanoclaw: Arc<dyn ClawRuntime>,
 }
 
+impl Default for RuntimeRegistry {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl RuntimeRegistry {
     pub fn new() -> Self {
         Self {
@@ -77,7 +83,7 @@ fn map_agent(agent: &Agent) -> Result<RuntimeAgent> {
         discord_bot_token: agent.discord_bot_token.clone(),
         discord_channel_id: agent.discord_channel_id.clone(),
         discord_channels: agent.discord_channels.as_ref().map(map_discord_channels),
-        model_provider: map_model_provider(agent.model_provider),
+        model_provider: map_model_provider(agent.model_provider.clone()),
         model_api_key: agent.model_api_key.clone(),
         model_endpoint: agent.model_endpoint.clone(),
         personality: agent.personality.clone(),

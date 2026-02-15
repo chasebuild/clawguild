@@ -1,0 +1,82 @@
+name: Lint and Format
+
+on:
+  push:
+    branches:
+      - master
+      - develop
+    paths:
+      - 'engine/**'
+      - 'api-server/**'
+      - 'claws/**'
+      - 'dashboard/**'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - '.github/workflows/ci.yml'
+  pull_request:
+    branches:
+      - master
+      - develop
+    paths:
+      - 'engine/**'
+      - 'api-server/**'
+      - 'claws/**'
+      - 'dashboard/**'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - '.github/workflows/ci.yml'
+  workflow_dispatch:
+
+jobs:
+  rust:
+    name: Rust fmt + clippy
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Format check
+        run: cargo fmt --all -- --check
+
+      - name: Lint (engine)
+        run: cargo clippy -- -D warnings
+        working-directory: engine
+
+      - name: Lint (api-server)
+        run: cargo clippy -- -D warnings
+        working-directory: api-server
+
+  dashboard:
+    name: Dashboard lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 'latest'
+
+      - name: Install dependencies
+        run: |
+          if [ -f pnpm-lock.yaml ]; then
+            pnpm install --frozen-lockfile
+          else
+            pnpm install
+          fi
+        working-directory: dashboard
+
+      - name: Lint
+        run: pnpm lint
+        working-directory: dashboard

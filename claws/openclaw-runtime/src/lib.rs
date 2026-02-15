@@ -1,9 +1,18 @@
 use anyhow::Result;
-use claws_runtime_core::{runtime_name, ClawRuntime, ModelProvider, RuntimeAgent, RuntimeContext, RuntimeKind, RuntimePlan};
+use claws_runtime_core::{
+    runtime_name, ClawRuntime, ModelProvider, RuntimeAgent, RuntimeContext, RuntimeKind,
+    RuntimePlan,
+};
 use serde_json::{json, Value};
 use std::collections::BTreeMap;
 
 pub struct OpenClawRuntime;
+
+impl Default for OpenClawRuntime {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 impl OpenClawRuntime {
     pub fn new() -> Self {
@@ -173,9 +182,21 @@ fn build_config_json(ctx: &RuntimeContext) -> Result<Value> {
             bot_token.get_or_insert_with(|| token.clone());
         }
         if let Some(channels) = &a.discord_channels {
-            all_bindings.push(channel_binding(channels.coordination_logs.clone(), &a.id, "coordination_logs"));
-            all_bindings.push(channel_binding(channels.slave_communication.clone(), &a.id, "slave_communication"));
-            all_bindings.push(channel_binding(channels.master_orders.clone(), &a.id, "master_orders"));
+            all_bindings.push(channel_binding(
+                channels.coordination_logs.clone(),
+                &a.id,
+                "coordination_logs",
+            ));
+            all_bindings.push(channel_binding(
+                channels.slave_communication.clone(),
+                &a.id,
+                "slave_communication",
+            ));
+            all_bindings.push(channel_binding(
+                channels.master_orders.clone(),
+                &a.id,
+                "master_orders",
+            ));
         } else if let Some(channel_id) = &a.discord_channel_id {
             all_bindings.push(json!({
                 "channelId": channel_id,

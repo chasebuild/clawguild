@@ -206,7 +206,7 @@ pub async fn create_agent(
         deployment_id: None,
         team_id: req.team_id,
         discord_bot_token: req.discord_bot_token,
-        discord_channel_id: discord_channel_id,
+        discord_channel_id,
         discord_channels,
         model_provider: req.model_provider,
         model_api_key: req.model_api_key,

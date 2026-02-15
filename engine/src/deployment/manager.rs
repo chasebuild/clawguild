@@ -62,7 +62,9 @@ impl DeploymentManager {
             .update_status(agent.id, AgentStatus::Deploying)
             .await?;
 
-        let (_runtime_kind, runtime_plan) = self.runtime_registry.build_plan(&[agent.clone()])?;
+        let (_runtime_kind, runtime_plan) = self
+            .runtime_registry
+            .build_plan(std::slice::from_ref(&agent))?;
 
         // Deploy to VPS with runtime configuration
         let agent_config = crate::adapters::trait_def::AgentConfig {

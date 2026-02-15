@@ -85,11 +85,17 @@ impl VpsProvider for AwsAdapter {
         Ok(())
     }
 
-    async fn get_logs(&self, _deployment_id: &DeploymentId, _lines: Option<usize>) -> Result<Vec<String>> {
+    async fn get_logs(
+        &self,
+        _deployment_id: &DeploymentId,
+        _lines: Option<usize>,
+    ) -> Result<Vec<String>> {
         // AWS logs would use CloudWatch Logs API
         // Placeholder implementation
         tracing::warn!("AWS adapter: Log retrieval requires AWS SDK implementation");
-        Ok(vec!["AWS logs require CloudWatch Logs API integration.".to_string()])
+        Ok(vec![
+            "AWS logs require CloudWatch Logs API integration.".to_string()
+        ])
     }
 
     fn provider_name(&self) -> &str {

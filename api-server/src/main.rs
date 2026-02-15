@@ -2,7 +2,6 @@ mod api;
 
 use anyhow::Result;
 use engine::{adapters, coordinator, deployment, Config, Database};
-use tracing_subscriber;
 
 #[tokio::main]
 async fn main() -> Result<()> {

@@ -1,11 +1,11 @@
 use crate::api::handlers;
 use crate::api::middleware;
+use axum::middleware as axum_middleware;
 use axum::Router;
 use engine::coordinator::Coordinator;
 use engine::deployment::manager::DeploymentManager;
 use engine::storage::Database;
 use tower_http::cors::CorsLayer;
-use axum::middleware as axum_middleware;
 
 pub async fn create_router(
     db: Database,

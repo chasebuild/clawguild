@@ -1,11 +1,15 @@
 use anyhow::Result;
-use claws_runtime_core::{
-    runtime_name, ClawRuntime, RuntimeContext, RuntimeKind, RuntimePlan,
-};
+use claws_runtime_core::{runtime_name, ClawRuntime, RuntimeContext, RuntimeKind, RuntimePlan};
 use serde_json::Value;
 use std::collections::BTreeMap;
 
 pub struct PicoClawRuntime;
+
+impl Default for PicoClawRuntime {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 impl PicoClawRuntime {
     pub fn new() -> Self {

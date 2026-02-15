@@ -7,6 +7,12 @@ use std::collections::BTreeMap;
 
 pub struct ZeroClawRuntime;
 
+impl Default for ZeroClawRuntime {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ZeroClawRuntime {
     pub fn new() -> Self {
         Self

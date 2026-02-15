@@ -1,6 +1,7 @@
 use crate::models::{Agent, AgentRuntime, DeploymentStatus};
 use anyhow::Result;
 use async_trait::async_trait;
+use claws_runtime_core::RuntimeServicePort;
 use std::collections::BTreeMap;
 use uuid::Uuid;
 
@@ -16,13 +17,6 @@ pub struct AgentConfig {
     pub runtime_init_script: String,
     pub runtime_env: BTreeMap<String, String>,
     pub runtime_services: Vec<RuntimeServicePort>,
-}
-
-#[derive(Debug, Clone)]
-pub struct RuntimeServicePort {
-    pub port: u16,
-    pub handlers: Vec<String>,
-    pub internal_port: u16,
 }
 
 #[derive(Debug, Clone)]
@@ -47,6 +41,10 @@ pub trait VpsProvider: Send + Sync {
     async fn get_status(&self, deployment_id: &DeploymentId) -> Result<VpsAgentStatus>;
     async fn destroy_agent(&self, deployment_id: &DeploymentId) -> Result<()>;
     async fn update_config(&self, deployment_id: &DeploymentId, config: AgentConfig) -> Result<()>;
-    async fn get_logs(&self, deployment_id: &DeploymentId, lines: Option<usize>) -> Result<Vec<String>>;
+    async fn get_logs(
+        &self,
+        deployment_id: &DeploymentId,
+        lines: Option<usize>,
+    ) -> Result<Vec<String>>;
     fn provider_name(&self) -> &str;
 }

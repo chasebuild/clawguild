@@ -18,8 +18,9 @@ pub struct Config {
 impl Config {
     pub fn load() -> anyhow::Result<Self> {
         Ok(Config {
-            database_url: env::var("DATABASE_URL")
-                .unwrap_or_else(|_| "postgres://postgres:postgres@localhost:5432/clawguild".to_string()),
+            database_url: env::var("DATABASE_URL").unwrap_or_else(|_| {
+                "postgres://postgres:postgres@localhost:5432/clawguild".to_string()
+            }),
             discord_bot_token: env::var("DISCORD_BOT_TOKEN").ok(),
             railway_api_key: env::var("RAILWAY_API_KEY").ok(),
             fly_api_token: env::var("FLY_API_TOKEN").ok(),

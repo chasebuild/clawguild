@@ -21,7 +21,8 @@ impl ApiServer {
         api_key: Option<String>,
         start_time: Instant,
     ) -> Result<Self> {
-        let router = routes::create_router(db, deployment_manager, coordinator, api_key, start_time).await?;
+        let router =
+            routes::create_router(db, deployment_manager, coordinator, api_key, start_time).await?;
 
         Ok(Self { router })
     }

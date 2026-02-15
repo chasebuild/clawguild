@@ -555,7 +555,12 @@ impl TeamRepository {
         Ok(rows.into_iter().map(Team::from).collect())
     }
 
-    pub async fn update_members(&self, id: Uuid, master_id: Uuid, slave_ids: Vec<Uuid>) -> Result<()> {
+    pub async fn update_members(
+        &self,
+        id: Uuid,
+        master_id: Uuid,
+        slave_ids: Vec<Uuid>,
+    ) -> Result<()> {
         sqlx::query(
             r#"
             UPDATE teams

@@ -27,7 +27,11 @@ impl SlaveCoordinator {
     pub async fn report_result(&self, task_id: Uuid, result: &str, team: &Team) -> Result<()> {
         let task_repo = repositories::TaskRepository::new(self.db.db().clone());
         task_repo
-            .update_fields(task_id, Some(TaskStatus::Completed), Some(result.to_string()))
+            .update_fields(
+                task_id,
+                Some(TaskStatus::Completed),
+                Some(result.to_string()),
+            )
             .await?;
 
         // Send result to slave communication channel

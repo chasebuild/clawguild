@@ -75,7 +75,7 @@ impl VpsProvider for RailwayAdapter {
         // Create service with OpenClaw template
         let service_response = self
             .client
-            .post(&format!(
+            .post(format!(
                 "https://api.railway.app/v1/projects/{}/services",
                 project_id
             ))
@@ -107,7 +107,7 @@ impl VpsProvider for RailwayAdapter {
 
         let response = self
             .client
-            .get(&format!(
+            .get(format!(
                 "https://api.railway.app/v1/services/{}",
                 service_id
             ))
@@ -142,7 +142,7 @@ impl VpsProvider for RailwayAdapter {
             .ok_or_else(|| anyhow::anyhow!("Invalid provider ID"))?;
 
         self.client
-            .delete(&format!(
+            .delete(format!(
                 "https://api.railway.app/v1/services/{}",
                 service_id
             ))
@@ -167,7 +167,7 @@ impl VpsProvider for RailwayAdapter {
         let env_vars = serde_json::Value::Object(env_vars_map);
 
         self.client
-            .post(&format!(
+            .post(format!(
                 "https://api.railway.app/v1/services/{}/variables",
                 service_id
             ))
@@ -180,7 +180,11 @@ impl VpsProvider for RailwayAdapter {
         Ok(())
     }
 
-    async fn get_logs(&self, deployment_id: &DeploymentId, lines: Option<usize>) -> Result<Vec<String>> {
+    async fn get_logs(
+        &self,
+        deployment_id: &DeploymentId,
+        lines: Option<usize>,
+    ) -> Result<Vec<String>> {
         let service_id = deployment_id
             .provider_id
             .strip_prefix("railway-")
@@ -191,7 +195,7 @@ impl VpsProvider for RailwayAdapter {
         // Railway API: Get deployment logs
         let response = self
             .client
-            .get(&format!(
+            .get(format!(
                 "https://api.railway.app/v1/services/{}/logs?limit={}",
                 service_id, limit
             ))
@@ -200,7 +204,9 @@ impl VpsProvider for RailwayAdapter {
             .await?;
 
         if !response.status().is_success() {
-            return Ok(vec!["Logs not available via API. Use Railway dashboard.".to_string()]);
+            return Ok(vec![
+                "Logs not available via API. Use Railway dashboard.".to_string()
+            ]);
         }
 
         let logs: serde_json::Value = response.json().await?;
@@ -211,7 +217,7 @@ impl VpsProvider for RailwayAdapter {
                     .filter_map(|v| v.as_str().map(|s| s.to_string()))
                     .collect()
             })
-            .unwrap_or_else(|| vec![]);
+            .unwrap_or_default();
 
         Ok(log_lines)
     }

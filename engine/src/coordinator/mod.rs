@@ -7,6 +7,7 @@ use anyhow::Result;
 
 #[derive(Clone)]
 pub struct Coordinator {
+    #[allow(unused)]
     db: Database,
     discord_client: Option<discord::DiscordClient>,
     master_coordinator: master::MasterCoordinator,
