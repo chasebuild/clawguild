@@ -7,45 +7,47 @@ use engine::{adapters, coordinator, deployment, Config, Database};
 async fn main() -> Result<()> {
     // Initialize tracing
     tracing_subscriber::fmt()
-        .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
+        .with_env_filter(
+            tracing_subscriber::EnvFilter::try_from_default_env()
+                .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info")),
+        )
         .init();
 
-    eprintln!("Starting ClawGuild API Server");
-    tracing::info!("Starting ClawGuild API Server");
+    tracing::info!("starting ClawGuild API server");
 
     // Load configuration
-    eprintln!("Loading configuration...");
+    tracing::info!("loading configuration");
     let config = Config::load()?;
-    eprintln!("Database URL: {}", config.database_url);
-    eprintln!("API Port: {}", config.api_port);
+    tracing::info!(database_url = %redact_database_url(&config.database_url), "database configured");
+    tracing::info!(api_port = config.api_port, "api port configured");
 
     // Initialize database
-    eprintln!("Connecting to database...");
+    tracing::info!("connecting to database");
     let db = Database::new(&config.database_url).await?;
-    eprintln!("Database connected successfully");
-    eprintln!("Running migrations...");
+    tracing::info!("database connected");
+    tracing::info!("running migrations");
     db.run_migrations().await?;
-    eprintln!("Migrations completed");
+    tracing::info!("migrations completed");
 
     // Initialize VPS adapters
-    eprintln!("Initializing VPS adapters...");
+    tracing::info!("initializing VPS adapters");
     let vps_adapters = adapters::VpsAdapters::new(&config).await?;
-    eprintln!("VPS adapters initialized");
+    tracing::info!("VPS adapters initialized");
 
     // Initialize deployment manager
-    eprintln!("Initializing deployment manager...");
+    tracing::info!("initializing deployment manager");
     let deployment_manager =
         deployment::manager::DeploymentManager::new(db.clone(), vps_adapters).await?;
-    eprintln!("Deployment manager initialized");
+    tracing::info!("deployment manager initialized");
 
     // Initialize coordinator
-    eprintln!("Initializing coordinator...");
+    tracing::info!("initializing coordinator");
     let coordinator =
         coordinator::Coordinator::new(db.clone(), config.discord_bot_token.clone()).await?;
-    eprintln!("Coordinator initialized");
+    tracing::info!("coordinator initialized");
 
     // Initialize API server
-    eprintln!("Initializing API server...");
+    tracing::info!("initializing API server");
     let start_time = std::time::Instant::now();
     let api_server = api::ApiServer::new(
         db.clone(),
@@ -55,11 +57,35 @@ async fn main() -> Result<()> {
         start_time,
     )
     .await?;
-    eprintln!("API server initialized");
+    tracing::info!("API server initialized");
 
     // Start API server
-    eprintln!("Starting API server on port {}...", config.api_port);
+    tracing::info!(api_port = config.api_port, "starting API server");
     api_server.start(config.api_port).await?;
 
     Ok(())
+}
+
+fn redact_database_url(url: &str) -> String {
+    let scheme_end = match url.find("://") {
+        Some(index) => index + 3,
+        None => return url.to_string(),
+    };
+
+    let at_index = match url[scheme_end..].find('@') {
+        Some(index) => scheme_end + index,
+        None => return url.to_string(),
+    };
+
+    let credentials = &url[scheme_end..at_index];
+    let colon_index = match credentials.find(':') {
+        Some(index) => scheme_end + index,
+        None => return url.to_string(),
+    };
+
+    let mut redacted = String::with_capacity(url.len());
+    redacted.push_str(&url[..colon_index + 1]);
+    redacted.push_str("***");
+    redacted.push_str(&url[at_index..]);
+    redacted
 }
