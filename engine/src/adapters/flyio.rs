@@ -103,118 +103,14 @@ impl VpsProvider for FlyIoAdapter {
         // Create a Fly.io machine (VM) - OpenClaw runs directly on the VM, not in Docker
         let region = config.region.as_deref().unwrap_or("iad"); // Default to iad (Washington, D.C.)
 
-        // Build environment variables for OpenClaw configuration
         let mut env_vars = serde_json::Map::new();
-        env_vars.insert(
-            "OPENCLAW_AGENT_NAME".to_string(),
-            serde_json::Value::String(config.agent.name.clone()),
-        );
-
-        // Store OpenClaw config as environment variable (will be written to file by init script)
-        if let Some(config_json) = &config.openclaw_config_json {
-            let config_str = serde_json::to_string(config_json)?;
-            env_vars.insert(
-                "OPENCLAW_CONFIG".to_string(),
-                serde_json::Value::String(config_str),
-            );
-        }
-        
-        // Store onboarding command as environment variable
-        if let Some(onboard_cmd) = &config.openclaw_onboard_command {
-            let cmd_str = onboard_cmd.join(" ");
-            env_vars.insert(
-                "OPENCLAW_ONBOARD_CMD".to_string(),
-                serde_json::Value::String(cmd_str),
-            );
+        for (key, value) in &config.runtime_env {
+            env_vars.insert(key.clone(), serde_json::Value::String(value.clone()));
         }
 
-        // Store Discord bot token if available
-        if let Some(bot_token) = &config.agent.discord_bot_token {
-            env_vars.insert(
-                "DISCORD_BOT_TOKEN".to_string(),
-                serde_json::Value::String(bot_token.clone()),
-            );
-        }
+        let init_script = config.runtime_init_script.as_str();
 
-        // Store model API key if available
-        if let Some(api_key) = &config.agent.model_api_key {
-            env_vars.insert(
-                "OPENCLAW_API_KEY".to_string(),
-                serde_json::Value::String(api_key.clone()),
-            );
-        }
-        
-        // Create machine with init script that installs OpenClaw directly on the VM
-        // OpenClaw runs directly on the VPS, not in a Docker container
-        let init_script = r#"#!/bin/bash
-set -e
-
-echo "Setting up OpenClaw on VPS..."
-
-# Install Node.js and npm if not present
-if ! command -v node &> /dev/null; then
-    echo "Installing Node.js..."
-    curl -fsSL https://deb.nodesource.com/setup_22.x | bash -
-    apt-get install -y nodejs
-fi
-
-# Install OpenClaw CLI if not present
-if ! command -v openclaw &> /dev/null; then
-    echo "Installing OpenClaw CLI..."
-    npm install -g openclaw
-fi
-
-# Create OpenClaw config directory
-mkdir -p ~/.openclaw
-
-# Write OpenClaw configuration if provided via environment variable
-if [ -n "$OPENCLAW_CONFIG" ]; then
-    echo "Writing OpenClaw configuration..."
-    echo "$OPENCLAW_CONFIG" > ~/.openclaw/openclaw.json
-fi
-
-# Run onboarding if not already configured and command is provided
-if [ ! -f ~/.openclaw/openclaw.json ] && [ -n "$OPENCLAW_ONBOARD_CMD" ]; then
-    echo "Running OpenClaw onboarding..."
-    eval "openclaw $OPENCLAW_ONBOARD_CMD"
-elif [ -n "$OPENCLAW_ONBOARD_CMD" ]; then
-    echo "OpenClaw already configured, skipping onboarding..."
-fi
-
-# Create systemd service for OpenClaw
-echo "Creating OpenClaw systemd service..."
-cat > /etc/systemd/system/openclaw.service << 'SERVICEEOF'
-[Unit]
-Description=OpenClaw Agent Service
-After=network.target
-
-[Service]
-Type=simple
-User=root
-WorkingDirectory=/root
-ExecStart=/usr/bin/openclaw start
-Restart=always
-RestartSec=10
-StandardOutput=journal
-StandardError=journal
-
-[Install]
-WantedBy=multi-user.target
-SERVICEEOF
-
-# Reload systemd and enable service
-systemctl daemon-reload
-systemctl enable openclaw
-
-# Start the service
-echo "Starting OpenClaw service..."
-systemctl start openclaw
-
-echo "OpenClaw setup complete!"
-systemctl status openclaw --no-pager
-"#;
-
-        let machine_config = serde_json::json!({
+        let mut machine_config = serde_json::json!({
             "name": format!("{}-machine", app_name),
             "region": region,
             "config": {
@@ -222,22 +118,31 @@ systemctl status openclaw --no-pager
                 "init": {
                     "cmd": ["/bin/bash", "-c", init_script]
                 },
-                "env": env_vars,
-                "services": [
-                    {
+                "env": env_vars
+            }
+        });
+
+        if !config.runtime_services.is_empty() {
+            let services: Vec<serde_json::Value> = config
+                .runtime_services
+                .iter()
+                .map(|service| {
+                    serde_json::json!({
                         "ports": [
                             {
-                                "port": 3000,
-                                "handlers": ["http"],
+                                "port": service.port,
+                                "handlers": service.handlers.clone(),
                                 "force_https": true
                             }
                         ],
                         "protocol": "tcp",
-                        "internal_port": 3000
-                    }
-                ]
-            }
-        });
+                        "internal_port": service.internal_port
+                    })
+                })
+                .collect();
+
+            machine_config["config"]["services"] = serde_json::Value::Array(services);
+        }
 
         let machine_response = self
             .client
@@ -299,7 +204,7 @@ systemctl status openclaw --no-pager
             deployment_id: deployment_id.clone(),
             status,
             endpoint: endpoint.clone(),
-            gateway_url: endpoint.map(|url| format!("{}/openclaw", url)),
+            gateway_url: endpoint.clone(),
         })
     }
 
@@ -324,12 +229,11 @@ systemctl status openclaw --no-pager
             .strip_prefix("flyio-")
             .ok_or_else(|| anyhow::anyhow!("Invalid provider ID"))?;
         
-        // Update secrets (environment variables)
-        let secrets: serde_json::Value = serde_json::json!({
-            "OPENCLAW_API_KEY": config.agent.model_api_key,
-            "DISCORD_BOT_TOKEN": config.agent.discord_bot_token,
-            "DISCORD_CHANNEL_ID": config.agent.discord_channel_id,
-        });
+        let mut secrets_map = serde_json::Map::new();
+        for (key, value) in &config.runtime_env {
+            secrets_map.insert(key.clone(), serde_json::Value::String(value.clone()));
+        }
+        let secrets = serde_json::Value::Object(secrets_map);
         
         self.client
             .post(&format!(

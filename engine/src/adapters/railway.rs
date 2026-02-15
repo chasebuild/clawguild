@@ -1,6 +1,6 @@
 use crate::adapters::trait_def::{AgentConfig, DeploymentId, VpsAgentStatus, VpsProvider};
 use crate::config::Config;
-use crate::models::DeploymentStatus;
+use crate::models::{AgentRuntime, DeploymentStatus};
 use anyhow::{Context, Result};
 use async_trait::async_trait;
 use reqwest::Client;
@@ -29,6 +29,12 @@ impl RailwayAdapter {
 #[async_trait]
 impl VpsProvider for RailwayAdapter {
     async fn deploy_agent(&self, config: AgentConfig) -> Result<DeploymentId> {
+        if config.runtime != AgentRuntime::OpenClaw {
+            anyhow::bail!(
+                "Railway adapter currently supports only OpenClaw runtime (requested {:?})",
+                config.runtime
+            );
+        }
         // Railway API: Create project
         let project_response = self
             .client
@@ -57,23 +63,8 @@ impl VpsProvider for RailwayAdapter {
 
         // Build environment variables object
         let mut env_vars = serde_json::Map::new();
-
-        // Add OpenClaw configuration as environment variable
-        if let Some(config_json) = &config.openclaw_config_json {
-            let config_str = serde_json::to_string(config_json)?;
-            env_vars.insert(
-                "OPENCLAW_CONFIG".to_string(),
-                serde_json::Value::String(config_str),
-            );
-        }
-
-        // Add onboard command as environment variable
-        if let Some(onboard_cmd) = &config.openclaw_onboard_command {
-            let cmd_str = onboard_cmd.join(" ");
-            env_vars.insert(
-                "OPENCLAW_ONBOARD_CMD".to_string(),
-                serde_json::Value::String(cmd_str),
-            );
+        for (key, value) in &config.runtime_env {
+            env_vars.insert(key.clone(), serde_json::Value::String(value.clone()));
         }
 
         // Add environment variables to service config if any were set
@@ -140,7 +131,7 @@ impl VpsProvider for RailwayAdapter {
             deployment_id: deployment_id.clone(),
             status,
             endpoint: endpoint.clone(),
-            gateway_url: endpoint.map(|url| format!("{}/openclaw", url)),
+            gateway_url: endpoint.clone(),
         })
     }
 
@@ -169,11 +160,11 @@ impl VpsProvider for RailwayAdapter {
             .ok_or_else(|| anyhow::anyhow!("Invalid provider ID"))?;
 
         // Update environment variables
-        let env_vars: serde_json::Value = serde_json::json!({
-            "OPENCLAW_API_KEY": config.agent.model_api_key,
-            "DISCORD_BOT_TOKEN": config.agent.discord_bot_token,
-            "DISCORD_CHANNEL_ID": config.agent.discord_channel_id,
-        });
+        let mut env_vars_map = serde_json::Map::new();
+        for (key, value) in &config.runtime_env {
+            env_vars_map.insert(key.clone(), serde_json::Value::String(value.clone()));
+        }
+        let env_vars = serde_json::Value::Object(env_vars_map);
 
         self.client
             .post(&format!(

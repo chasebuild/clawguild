@@ -1,0 +1,124 @@
+use anyhow::Result;
+use claws_runtime_core::{
+    runtime_name, ClawRuntime, RuntimeContext, RuntimeKind, RuntimePlan,
+};
+use serde_json::Value;
+use std::collections::BTreeMap;
+
+pub struct PicoClawRuntime;
+
+impl PicoClawRuntime {
+    pub fn new() -> Self {
+        Self
+    }
+}
+
+impl ClawRuntime for PicoClawRuntime {
+    fn kind(&self) -> RuntimeKind {
+        RuntimeKind::PicoClaw
+    }
+
+    fn name(&self) -> &'static str {
+        runtime_name(self.kind())
+    }
+
+    fn build_plan(&self, ctx: &RuntimeContext) -> Result<RuntimePlan> {
+        let settings = runtime_settings(&ctx.primary);
+
+        let mut env = BTreeMap::new();
+        if let Some(api_key) = settings.openrouter_api_key {
+            env.insert("PICOCLAW_OPENROUTER_API_KEY".to_string(), api_key);
+        }
+        if let Some(token) = settings.discord_token {
+            env.insert("PICOCLAW_DISCORD_TOKEN".to_string(), token);
+        }
+
+        let init_script = r#"#!/bin/bash
+set -e
+
+echo "Setting up PicoClaw on VPS..."
+
+apt-get update -y
+apt-get install -y curl git build-essential pkg-config libssl-dev
+
+if ! command -v cargo &> /dev/null; then
+    echo "Installing Rust toolchain..."
+    curl https://sh.rustup.rs -sSf | sh -s -- -y
+    source "$HOME/.cargo/env"
+fi
+
+if ! command -v picoclaw &> /dev/null; then
+    echo "Installing PicoClaw..."
+    source "$HOME/.cargo/env"
+    cargo install picoclaw
+fi
+
+if [ -n "$PICOCLAW_OPENROUTER_API_KEY" ]; then
+    picoclaw config set openrouter_api_key "$PICOCLAW_OPENROUTER_API_KEY"
+fi
+if [ -n "$PICOCLAW_DISCORD_TOKEN" ]; then
+    picoclaw discord login --token "$PICOCLAW_DISCORD_TOKEN"
+fi
+
+echo "Creating PicoClaw systemd service..."
+cat > /etc/systemd/system/picoclaw.service << 'SERVICEEOF'
+[Unit]
+Description=PicoClaw Agent Service
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/root
+ExecStart=/root/.cargo/bin/picoclaw daemon
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
+SERVICEEOF
+
+systemctl daemon-reload
+systemctl enable picoclaw
+
+echo "Starting PicoClaw service..."
+systemctl start picoclaw
+
+echo "PicoClaw setup complete!"
+systemctl status picoclaw --no-pager
+"#
+        .to_string();
+
+        Ok(RuntimePlan {
+            env,
+            init_script,
+            services: Vec::new(),
+        })
+    }
+}
+
+struct PicoClawSettings {
+    openrouter_api_key: Option<String>,
+    discord_token: Option<String>,
+}
+
+fn runtime_settings(agent: &claws_runtime_core::RuntimeAgent) -> PicoClawSettings {
+    let mut openrouter_api_key = agent.model_api_key.clone();
+    let mut discord_token = agent.discord_bot_token.clone();
+
+    if let Some(Value::Object(map)) = agent.runtime_config.as_ref() {
+        if let Some(Value::String(value)) = map.get("openrouter_api_key") {
+            openrouter_api_key = Some(value.clone());
+        }
+        if let Some(Value::String(value)) = map.get("discord_token") {
+            discord_token = Some(value.clone());
+        }
+    }
+
+    PicoClawSettings {
+        openrouter_api_key,
+        discord_token,
+    }
+}

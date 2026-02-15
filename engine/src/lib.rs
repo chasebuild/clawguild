@@ -3,6 +3,7 @@ pub mod config;
 pub mod coordinator;
 pub mod deployment;
 pub mod models;
+pub mod runtime;
 pub mod storage;
 
 // Re-export commonly used types

@@ -1,5 +1,13 @@
 [workspace]
-members = ["engine", "api-server"]
+members = [
+    "engine",
+    "api-server",
+    "claws/runtime-core",
+    "claws/openclaw-runtime",
+    "claws/zeroclaw-runtime",
+    "claws/picoclaw-runtime",
+    "claws/nanoclaw-runtime",
+]
 resolver = "2"
 
 [workspace.package]

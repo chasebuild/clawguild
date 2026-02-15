@@ -1,6 +1,7 @@
-use crate::models::{Agent, DeploymentStatus};
+use crate::models::{Agent, AgentRuntime, DeploymentStatus};
 use anyhow::Result;
 use async_trait::async_trait;
+use std::collections::BTreeMap;
 use uuid::Uuid;
 
 #[derive(Debug, Clone)]
@@ -11,8 +12,17 @@ pub struct AgentConfig {
     pub agents: Option<Vec<Agent>>,
     #[allow(dead_code)]
     pub region: Option<String>,
-    pub openclaw_onboard_command: Option<Vec<String>>,
-    pub openclaw_config_json: Option<serde_json::Value>,
+    pub runtime: AgentRuntime,
+    pub runtime_init_script: String,
+    pub runtime_env: BTreeMap<String, String>,
+    pub runtime_services: Vec<RuntimeServicePort>,
+}
+
+#[derive(Debug, Clone)]
+pub struct RuntimeServicePort {
+    pub port: u16,
+    pub handlers: Vec<String>,
+    pub internal_port: u16,
 }
 
 #[derive(Debug, Clone)]

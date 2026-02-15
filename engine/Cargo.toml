@@ -22,3 +22,8 @@ uuid.workspace = true
 serenity.workspace = true
 async-trait.workspace = true
 tracing.workspace = true
+claws-runtime-core = { path = "../claws/runtime-core" }
+openclaw-runtime = { path = "../claws/openclaw-runtime" }
+zeroclaw-runtime = { path = "../claws/zeroclaw-runtime" }
+picoclaw-runtime = { path = "../claws/picoclaw-runtime" }
+nanoclaw-runtime = { path = "../claws/nanoclaw-runtime" }

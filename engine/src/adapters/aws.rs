@@ -43,13 +43,10 @@ impl VpsProvider for AwsAdapter {
         // For now, return a placeholder with a note that full AWS SDK integration is needed
         // This requires additional dependencies: aws-config, aws-sdk-ecs, etc.
 
-        // Store OpenClaw config for when AWS SDK is implemented
-        if let Some(_config_json) = &config.openclaw_config_json {
-            tracing::debug!("OpenClaw config prepared for AWS deployment");
-        }
-        if let Some(_onboard_cmd) = &config.openclaw_onboard_command {
-            tracing::debug!("OpenClaw onboard command prepared for AWS deployment");
-        }
+        tracing::debug!(
+            "AWS adapter placeholder: runtime {:?} prepared for deployment",
+            config.runtime
+        );
 
         tracing::warn!("AWS adapter: Full implementation requires AWS SDK. Using placeholder.");
         let provider_id = format!("aws-{}", Uuid::new_v4());

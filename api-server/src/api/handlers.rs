@@ -6,8 +6,8 @@ use axum::{
 use engine::coordinator::Coordinator;
 use engine::deployment::manager::DeploymentManager;
 use engine::models::{
-    Agent, AgentRole, AgentStatus, DiscordChannels, ModelProvider, Task, TaskStatus, Team,
-    VpsProvider,
+    Agent, AgentRole, AgentRuntime, AgentStatus, DiscordChannels, ModelProvider, Task, TaskStatus,
+    Team, VpsProvider,
 };
 use engine::storage::Database;
 use serde::{Deserialize, Serialize};
@@ -149,11 +149,13 @@ pub struct CreateAgentRequest {
     pub team_id: Option<Uuid>,
     pub discord_bot_token: Option<String>,
     pub discord_channel_id: Option<String>,
+    pub runtime: Option<AgentRuntime>,
     pub model_provider: ModelProvider,
     pub model_api_key: Option<String>,
     pub model_endpoint: Option<String>,
     pub personality: Option<String>,
     pub skills: Vec<String>,
+    pub runtime_config: Option<serde_json::Value>,
     pub responsibility: Option<String>,
     pub emoji: Option<String>,
 }
@@ -171,6 +173,7 @@ pub struct AgentResponse {
     pub name: String,
     pub role: AgentRole,
     pub status: AgentStatus,
+    pub runtime: AgentRuntime,
     pub responsibility: Option<String>,
     pub emoji: Option<String>,
 }
@@ -199,6 +202,7 @@ pub async fn create_agent(
         name: req.name,
         role: req.role,
         status: AgentStatus::Pending,
+        runtime: req.runtime.unwrap_or(AgentRuntime::OpenClaw),
         deployment_id: None,
         team_id: req.team_id,
         discord_bot_token: req.discord_bot_token,
@@ -210,6 +214,7 @@ pub async fn create_agent(
         personality: req.personality,
         skills: req.skills,
         workspace_dir: None,
+        runtime_config: req.runtime_config,
         responsibility: req.responsibility,
         emoji: req.emoji,
         created_at: chrono::Utc::now(),
@@ -258,6 +263,7 @@ pub async fn create_agent(
         name: agent.name,
         role: agent.role,
         status: agent.status,
+        runtime: agent.runtime,
         responsibility: agent.responsibility,
         emoji: agent.emoji,
     }))
@@ -279,6 +285,7 @@ pub async fn list_agents(
             name: agent.name,
             role: agent.role,
             status: agent.status,
+            runtime: agent.runtime,
             responsibility: agent.responsibility,
             emoji: agent.emoji,
         })

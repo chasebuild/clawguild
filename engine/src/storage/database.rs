@@ -36,6 +36,7 @@ impl Database {
                 name text NOT NULL,
                 role text NOT NULL,
                 status text NOT NULL,
+                runtime text NOT NULL DEFAULT 'openclaw',
                 deployment_id uuid,
                 team_id uuid,
                 discord_bot_token text,
@@ -47,11 +48,22 @@ impl Database {
                 personality text,
                 skills text[] NOT NULL DEFAULT '{}',
                 workspace_dir text,
+                runtime_config jsonb,
                 responsibility text,
                 emoji text,
                 created_at timestamptz NOT NULL,
                 updated_at timestamptz NOT NULL
             );
+            "#,
+        )
+        .execute(&mut *tx)
+        .await?;
+
+        sqlx::query(
+            r#"
+            ALTER TABLE agents
+            ADD COLUMN IF NOT EXISTS runtime text NOT NULL DEFAULT 'openclaw',
+            ADD COLUMN IF NOT EXISTS runtime_config jsonb
             "#,
         )
         .execute(&mut *tx)

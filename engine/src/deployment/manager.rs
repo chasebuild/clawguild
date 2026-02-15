@@ -2,6 +2,7 @@ use crate::adapters::VpsAdapters;
 use crate::models::{
     Agent, AgentStatus, Deployment, DeploymentStatus, VpsProvider as ModelVpsProvider,
 };
+use crate::runtime::RuntimeRegistry;
 use crate::storage::{repositories, Database};
 use anyhow::Result;
 use chrono::Utc;
@@ -11,11 +12,16 @@ use uuid::Uuid;
 pub struct DeploymentManager {
     db: Database,
     pub vps_adapters: VpsAdapters,
+    runtime_registry: RuntimeRegistry,
 }
 
 impl DeploymentManager {
     pub async fn new(db: Database, vps_adapters: VpsAdapters) -> Result<Self> {
-        Ok(Self { db, vps_adapters })
+        Ok(Self {
+            db,
+            vps_adapters,
+            runtime_registry: RuntimeRegistry::new(),
+        })
     }
 
     pub async fn deploy_agent(
@@ -56,18 +62,17 @@ impl DeploymentManager {
             .update_status(agent.id, AgentStatus::Deploying)
             .await?;
 
-        // Generate OpenClaw configuration and onboarding command
-        let openclaw_config = crate::deployment::openclaw::OpenClawConfig::new(agent.clone());
-        let config_json = openclaw_config.generate_config_json()?;
-        let onboard_command = openclaw_config.generate_onboard_command()?;
+        let (_runtime_kind, runtime_plan) = self.runtime_registry.build_plan(&[agent.clone()])?;
 
-        // Deploy to VPS with OpenClaw configuration
+        // Deploy to VPS with runtime configuration
         let agent_config = crate::adapters::trait_def::AgentConfig {
             agent: agent.clone(),
             agents: None,
             region: deployment.region.clone(),
-            openclaw_onboard_command: Some(onboard_command),
-            openclaw_config_json: Some(config_json),
+            runtime: agent.runtime,
+            runtime_init_script: runtime_plan.init_script,
+            runtime_env: runtime_plan.env,
+            runtime_services: runtime_plan.services,
         };
 
         let deploy_result = vps_provider.deploy_agent(agent_config).await?;
@@ -175,16 +180,16 @@ impl DeploymentManager {
                 .await?;
         }
 
-        let openclaw_config = crate::deployment::openclaw::OpenClawConfig::multi(agents.clone());
-        let config_json = openclaw_config.generate_config_json()?;
-        let onboard_command = openclaw_config.generate_onboard_command()?;
+        let (_runtime_kind, runtime_plan) = self.runtime_registry.build_plan(&agents)?;
 
         let agent_config = crate::adapters::trait_def::AgentConfig {
             agent: agents[0].clone(),
             agents: Some(agents.clone()),
             region: deployment.region.clone(),
-            openclaw_onboard_command: Some(onboard_command),
-            openclaw_config_json: Some(config_json),
+            runtime: agents[0].runtime,
+            runtime_init_script: runtime_plan.init_script,
+            runtime_env: runtime_plan.env,
+            runtime_services: runtime_plan.services,
         };
 
         let deploy_result = vps_provider.deploy_agent(agent_config).await?;

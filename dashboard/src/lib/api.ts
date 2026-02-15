@@ -16,6 +16,7 @@ export interface Agent {
   name: string;
   role: 'master' | 'slave';
   status: 'pending' | 'deploying' | 'running' | 'stopped' | 'error';
+  runtime: 'openclaw' | 'zeroclaw' | 'picoclaw' | 'nanoclaw';
   responsibility?: string;
   emoji?: string;
 }
@@ -28,11 +29,13 @@ export interface CreateAgentRequest {
   team_id?: string;
   discord_bot_token?: string;
   discord_channel_id?: string;
+  runtime?: 'openclaw' | 'zeroclaw' | 'picoclaw' | 'nanoclaw';
   model_provider: 'openclaw' | 'anthropic' | 'openai' | 'byom';
   model_api_key?: string;
   model_endpoint?: string;
   personality?: string;
   skills: string[];
+  runtime_config?: Record<string, unknown>;
   responsibility?: string;
   emoji?: string;
 }

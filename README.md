@@ -1,6 +1,6 @@
-# ClawGuild - OpenClaw Agent Swarm Orchestrator
+# ClawGuild - Claw Runtime Orchestrator
 
-A Rust-based orchestrator for deploying and managing multiple OpenClaw agent instances across VPS providers (Railway, Fly.io, AWS) with Discord-based coordination.
+A Rust-based orchestrator for deploying and managing multiple Claw runtimes across VPS providers (Railway, Fly.io, AWS) with Discord-based coordination.
 
 ## Features
 
@@ -8,6 +8,7 @@ A Rust-based orchestrator for deploying and managing multiple OpenClaw agent ins
 - **Master-Slave Coordination**: Master agent delegates tasks to specialized slave agents via Discord
 - **One-Click Dashboard**: Web-based dashboard for managing agent teams and monitoring status
 - **Discord Integration**: All agents coordinate through Discord channels
+- **Multi-Runtime Support**: OpenClaw, ZeroClaw, PicoClaw, and NanoClaw runtimes
 - **BYOM Support**: Use OpenClaw API or bring your own model (BYOM)
 
 ## Architecture
@@ -15,6 +16,7 @@ A Rust-based orchestrator for deploying and managing multiple OpenClaw agent ins
 - **Engine (Rust)**: Core orchestration logic, storage, deployments, and Discord coordination
 - **API Server (Rust)**: Axum HTTP API exposing engine functionality
 - **VPS Adapter Layer**: Abstract interface for different VPS providers
+- **Runtime Layer**: Pluggable runtime crates for each Claw family
 - **Web Dashboard**: Next.js frontend with shadcn/ui components
 
 ## Quick Start
@@ -76,9 +78,15 @@ clawguild/
 ├── engine/           # Core Rust engine library
 ├── api-server/       # Rust API server (Axum)
 ├── dashboard/        # Next.js web dashboard
+├── claws/            # Runtime crates (OpenClaw, ZeroClaw, PicoClaw, NanoClaw)
+├── docs/             # Architecture and compatibility docs
 ├── docker/           # Docker configurations
 └── scripts/          # Deployment scripts
 ```
+
+## Runtime Compatibility
+
+See `docs/runtime-compat.md` for runtime-specific configuration, overrides, and support notes.
 
 ## License
 

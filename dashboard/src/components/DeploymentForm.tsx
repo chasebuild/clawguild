@@ -13,6 +13,7 @@ export function DeploymentForm({ onSuccess }: DeploymentFormProps) {
     name: '',
     role: 'slave',
     provider: 'flyio',
+    runtime: 'openclaw',
     model_provider: 'openclaw',
     skills: [],
   });
@@ -31,6 +32,7 @@ export function DeploymentForm({ onSuccess }: DeploymentFormProps) {
         name: '',
         role: 'slave',
         provider: 'flyio',
+        runtime: 'openclaw',
         model_provider: 'openclaw',
         skills: [],
       });
@@ -83,6 +85,25 @@ export function DeploymentForm({ onSuccess }: DeploymentFormProps) {
           <option value="railway">Railway</option>
           <option value="flyio">Fly.io</option>
           <option value="aws">AWS</option>
+        </select>
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium mb-1">Runtime</label>
+        <select
+          value={formData.runtime ?? 'openclaw'}
+          onChange={(e) =>
+            setFormData({
+              ...formData,
+              runtime: e.target.value as 'openclaw' | 'zeroclaw' | 'picoclaw' | 'nanoclaw',
+            })
+          }
+          className="w-full px-3 py-2 border rounded-md"
+        >
+          <option value="openclaw">OpenClaw</option>
+          <option value="zeroclaw">ZeroClaw</option>
+          <option value="picoclaw">PicoClaw</option>
+          <option value="nanoclaw">NanoClaw</option>
         </select>
       </div>
 

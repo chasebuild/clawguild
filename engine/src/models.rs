@@ -8,6 +8,7 @@ pub struct Agent {
     pub name: String,
     pub role: AgentRole,
     pub status: AgentStatus,
+    pub runtime: AgentRuntime,
     pub deployment_id: Option<Uuid>,
     pub team_id: Option<Uuid>,
     pub discord_bot_token: Option<String>,
@@ -19,6 +20,7 @@ pub struct Agent {
     pub personality: Option<String>,
     pub skills: Vec<String>,
     pub workspace_dir: Option<String>,
+    pub runtime_config: Option<serde_json::Value>,
     pub responsibility: Option<String>, // What the agent does (e.g., "Delegates, connects dots, ships")
     pub emoji: Option<String>,          // Emoji representing the agent's role (e.g., "🧰")
     pub created_at: DateTime<Utc>,
@@ -40,6 +42,15 @@ pub enum AgentStatus {
     Running,
     Stopped,
     Error,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum AgentRuntime {
+    OpenClaw,
+    ZeroClaw,
+    PicoClaw,
+    NanoClaw,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

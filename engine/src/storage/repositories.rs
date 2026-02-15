@@ -1,6 +1,6 @@
 use crate::models::{
-    Agent, AgentRole, AgentStatus, Deployment, DeploymentStatus, DiscordChannels, ModelProvider,
-    Task, TaskStatus, Team, VpsProvider,
+    Agent, AgentRole, AgentRuntime, AgentStatus, Deployment, DeploymentStatus, DiscordChannels,
+    ModelProvider, Task, TaskStatus, Team, VpsProvider,
 };
 use anyhow::{Context, Result};
 use chrono::{DateTime, Utc};
@@ -14,6 +14,7 @@ struct AgentRow {
     name: String,
     role: String,
     status: String,
+    runtime: String,
     deployment_id: Option<Uuid>,
     team_id: Option<Uuid>,
     discord_bot_token: Option<String>,
@@ -25,6 +26,7 @@ struct AgentRow {
     personality: Option<String>,
     skills: Vec<String>,
     workspace_dir: Option<String>,
+    runtime_config: Option<Json<serde_json::Value>>,
     responsibility: Option<String>,
     emoji: Option<String>,
     created_at: DateTime<Utc>,
@@ -40,6 +42,7 @@ impl TryFrom<AgentRow> for Agent {
             name: row.name,
             role: parse_agent_role(&row.role)?,
             status: parse_agent_status(&row.status)?,
+            runtime: parse_agent_runtime(&row.runtime)?,
             deployment_id: row.deployment_id,
             team_id: row.team_id,
             discord_bot_token: row.discord_bot_token,
@@ -51,6 +54,7 @@ impl TryFrom<AgentRow> for Agent {
             personality: row.personality,
             skills: row.skills,
             workspace_dir: row.workspace_dir,
+            runtime_config: row.runtime_config.map(|value| value.0),
             responsibility: row.responsibility,
             emoji: row.emoji,
             created_at: row.created_at,
@@ -167,16 +171,16 @@ impl AgentRepository {
         sqlx::query(
             r#"
             INSERT INTO agents (
-                id, name, role, status, deployment_id, team_id, discord_bot_token,
+                id, name, role, status, runtime, deployment_id, team_id, discord_bot_token,
                 discord_channel_id, discord_channels, model_provider, model_api_key,
-                model_endpoint, personality, skills, workspace_dir, responsibility, emoji,
+                model_endpoint, personality, skills, workspace_dir, runtime_config, responsibility, emoji,
                 created_at, updated_at
             )
             VALUES (
                 $1, $2, $3, $4, $5, $6, $7,
-                $8, $9, $10, $11,
-                $12, $13, $14, $15, $16, $17,
-                $18, $19
+                $8, $9, $10, $11, $12,
+                $13, $14, $15, $16, $17, $18,
+                $19, $20, $21
             )
             "#,
         )
@@ -184,6 +188,7 @@ impl AgentRepository {
         .bind(&agent.name)
         .bind(agent_role_to_str(&agent.role))
         .bind(agent_status_to_str(&agent.status))
+        .bind(agent_runtime_to_str(&agent.runtime))
         .bind(agent.deployment_id)
         .bind(agent.team_id)
         .bind(&agent.discord_bot_token)
@@ -195,6 +200,7 @@ impl AgentRepository {
         .bind(&agent.personality)
         .bind(&agent.skills)
         .bind(&agent.workspace_dir)
+        .bind(agent.runtime_config.clone().map(Json))
         .bind(&agent.responsibility)
         .bind(&agent.emoji)
         .bind(agent.created_at)
@@ -211,7 +217,8 @@ impl AgentRepository {
             r#"
             SELECT id, name, role, status, deployment_id, team_id, discord_bot_token,
                    discord_channel_id, discord_channels, model_provider, model_api_key,
-                   model_endpoint, personality, skills, workspace_dir, responsibility, emoji,
+                   model_endpoint, personality, skills, workspace_dir, runtime_config, responsibility, emoji,
+                   runtime,
                    created_at, updated_at
             FROM agents
             WHERE id = $1
@@ -315,7 +322,8 @@ impl AgentRepository {
             r#"
             SELECT id, name, role, status, deployment_id, team_id, discord_bot_token,
                    discord_channel_id, discord_channels, model_provider, model_api_key,
-                   model_endpoint, personality, skills, workspace_dir, responsibility, emoji,
+                   model_endpoint, personality, skills, workspace_dir, runtime_config, responsibility, emoji,
+                   runtime,
                    created_at, updated_at
             FROM agents
             ORDER BY created_at DESC
@@ -717,6 +725,16 @@ fn parse_agent_status(value: &str) -> Result<AgentStatus> {
     }
 }
 
+fn parse_agent_runtime(value: &str) -> Result<AgentRuntime> {
+    match value {
+        "openclaw" => Ok(AgentRuntime::OpenClaw),
+        "zeroclaw" => Ok(AgentRuntime::ZeroClaw),
+        "picoclaw" => Ok(AgentRuntime::PicoClaw),
+        "nanoclaw" => Ok(AgentRuntime::NanoClaw),
+        _ => anyhow::bail!("invalid agent runtime: {}", value),
+    }
+}
+
 fn parse_model_provider(value: &str) -> Result<ModelProvider> {
     match value {
         "openclaw" => Ok(ModelProvider::OpenClaw),
@@ -771,6 +789,15 @@ fn agent_status_to_str(status: &AgentStatus) -> &'static str {
         AgentStatus::Running => "running",
         AgentStatus::Stopped => "stopped",
         AgentStatus::Error => "error",
+    }
+}
+
+fn agent_runtime_to_str(runtime: &AgentRuntime) -> &'static str {
+    match runtime {
+        AgentRuntime::OpenClaw => "openclaw",
+        AgentRuntime::ZeroClaw => "zeroclaw",
+        AgentRuntime::PicoClaw => "picoclaw",
+        AgentRuntime::NanoClaw => "nanoclaw",
     }
 }
 
