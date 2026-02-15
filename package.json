@@ -24,7 +24,8 @@
       "prettier --write"
     ],
     "**/*.rs": [
-      "rustfmt --edition 2021"
+      "rustfmt --edition 2021",
+      "cargo clippy -- -D warnings"
     ]
   }
 }
