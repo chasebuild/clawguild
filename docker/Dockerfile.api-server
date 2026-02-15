@@ -14,20 +14,38 @@ WORKDIR /app
 COPY Cargo.toml ./
 COPY engine/Cargo.toml ./engine/
 COPY api-server/Cargo.toml ./api-server/
+COPY claws/runtime-core/Cargo.toml ./claws/runtime-core/
+COPY claws/openclaw-runtime/Cargo.toml ./claws/openclaw-runtime/
+COPY claws/zeroclaw-runtime/Cargo.toml ./claws/zeroclaw-runtime/
+COPY claws/picoclaw-runtime/Cargo.toml ./claws/picoclaw-runtime/
+COPY claws/nanoclaw-runtime/Cargo.toml ./claws/nanoclaw-runtime/
 
 # Copy Cargo.lock if it exists
 COPY Cargo.lock* ./
 
 # Create dummy sources to build dependencies (for caching)
-RUN mkdir -p engine/src api-server/src && \
+RUN mkdir -p \
+    engine/src \
+    api-server/src \
+    claws/runtime-core/src \
+    claws/openclaw-runtime/src \
+    claws/zeroclaw-runtime/src \
+    claws/picoclaw-runtime/src \
+    claws/nanoclaw-runtime/src && \
     echo "pub fn dummy() {}" > engine/src/lib.rs && \
+    echo "pub fn dummy() {}" > claws/runtime-core/src/lib.rs && \
+    echo "pub fn dummy() {}" > claws/openclaw-runtime/src/lib.rs && \
+    echo "pub fn dummy() {}" > claws/zeroclaw-runtime/src/lib.rs && \
+    echo "pub fn dummy() {}" > claws/picoclaw-runtime/src/lib.rs && \
+    echo "pub fn dummy() {}" > claws/nanoclaw-runtime/src/lib.rs && \
     echo "fn main() {}" > api-server/src/main.rs && \
     cargo build --release --bin api-server 2>/dev/null || true && \
-    rm -rf engine/src api-server/src
+    rm -rf engine/src api-server/src claws/runtime-core/src claws/openclaw-runtime/src claws/zeroclaw-runtime/src claws/picoclaw-runtime/src claws/nanoclaw-runtime/src
 
 # Copy actual source code
 COPY engine ./engine
 COPY api-server ./api-server
+COPY claws ./claws
 
 # Build the actual application
 RUN cargo build --release --bin api-server
