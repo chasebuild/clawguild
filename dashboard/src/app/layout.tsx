@@ -17,11 +17,7 @@ export const metadata: Metadata = {
   description: 'Manage and coordinate OpenClaw agent swarms',
 };
 
-export default function RootLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
       <body className={`${spaceGrotesk.variable} ${jetBrainsMono.variable} font-sans`}>

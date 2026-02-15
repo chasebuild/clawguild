@@ -1,0 +1,30 @@
+{
+  "name": "clawguild",
+  "private": true,
+  "scripts": {
+    "lint": "lerna run lint",
+    "format": "lerna run format",
+    "dev": "lerna run dev --scope dashboard --stream",
+    "build": "lerna run build",
+    "prepare": "husky install",
+    "lint-staged": "lint-staged"
+  },
+  "devDependencies": {
+    "husky": "^9.1.7",
+    "lint-staged": "^15.2.11",
+    "lerna": "^8.1.5",
+    "prettier": "^3.3.3"
+  },
+  "lint-staged": {
+    "dashboard/**/*.{js,jsx,ts,tsx}": [
+      "pnpm -C dashboard exec next lint --file",
+      "prettier --write"
+    ],
+    "**/*.{js,jsx,ts,tsx,css,md,json,yml,yaml,html,toml}": [
+      "prettier --write"
+    ],
+    "**/*.rs": [
+      "rustfmt --edition 2021"
+    ]
+  }
+}

@@ -10,7 +10,7 @@ install-rust:
 
 # Install frontend dependencies
 install-frontend:
-    cd dashboard && pnpm install
+    pnpm install
 
 # Install all dependencies
 install: install-rust install-frontend
@@ -88,11 +88,13 @@ lint:
     cd api-server && cargo clippy -- -D warnings
     cd dashboard && pnpm lint
 
-# Format code
-format:
-    cd engine && cargo fmt
-    cd api-server && cargo fmt
-    cd dashboard && pnpm format || true
+# Format code (entire monorepo)
+fmt:
+    cargo fmt --all
+    pnpm exec prettier --write .
+
+# Backwards-compatible alias
+format: fmt
 
 # Clean build artifacts
 clean:

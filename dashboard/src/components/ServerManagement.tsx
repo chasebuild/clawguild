@@ -57,12 +57,7 @@ export function ServerManagement() {
             <CardTitle className="text-2xl font-bold">System Readiness</CardTitle>
             <CardDescription>Live heartbeat for the API and database</CardDescription>
           </div>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={loadData}
-            disabled={refreshing}
-          >
+          <Button variant="outline" size="sm" onClick={loadData} disabled={refreshing}>
             <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
             Refresh
           </Button>

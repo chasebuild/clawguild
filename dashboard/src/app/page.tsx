@@ -9,7 +9,13 @@ import { TeamForm } from '@/components/TeamForm';
 import { TeamAssignmentForm } from '@/components/TeamAssignmentForm';
 import { VpsLogsViewer } from '@/components/VpsLogsViewer';
 import { TaskManager } from '@/components/TaskManager';
-import { api, DeploymentResponse, ServerHealthResponse, ServerStatusResponse, Team } from '@/lib/api';
+import {
+  api,
+  DeploymentResponse,
+  ServerHealthResponse,
+  ServerStatusResponse,
+  Team,
+} from '@/lib/api';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 
@@ -73,10 +79,7 @@ export default function Home() {
     return { running, failed, total: deployments.length };
   }, [deployments]);
 
-  const errorAgents = useMemo(
-    () => agents.filter((agent) => agent.status === 'error'),
-    [agents],
-  );
+  const errorAgents = useMemo(() => agents.filter((agent) => agent.status === 'error'), [agents]);
 
   const errorDeployments = useMemo(
     () => deployments.filter((deployment) => deployment.status.toLowerCase() === 'failed'),
@@ -93,8 +96,8 @@ export default function Home() {
             </p>
             <h1 className="text-4xl md:text-5xl font-semibold mt-2">ClawGuild Command Center</h1>
             <p className="text-muted-foreground mt-3 max-w-xl">
-              Monitor live agent health, investigate errors, and dispatch new work without
-              context switching.
+              Monitor live agent health, investigate errors, and dispatch new work without context
+              switching.
             </p>
           </div>
           <div className="flex flex-wrap gap-3">
@@ -240,9 +243,7 @@ export default function Home() {
               <div className="flex items-center justify-between">
                 <div>
                   <h2 className="text-xl font-semibold">Live Agents</h2>
-                  <p className="text-sm text-muted-foreground">
-                    Track status across the swarm.
-                  </p>
+                  <p className="text-sm text-muted-foreground">Track status across the swarm.</p>
                 </div>
                 <button
                   type="button"

@@ -79,7 +79,9 @@ export function DeploymentForm({ onSuccess }: DeploymentFormProps) {
         <label className="block text-sm font-medium mb-1">VPS Provider</label>
         <select
           value={formData.provider}
-          onChange={(e) => setFormData({ ...formData, provider: e.target.value as 'railway' | 'flyio' | 'aws' })}
+          onChange={(e) =>
+            setFormData({ ...formData, provider: e.target.value as 'railway' | 'flyio' | 'aws' })
+          }
           className="w-full px-3 py-2 border rounded-md"
         >
           <option value="railway">Railway</option>

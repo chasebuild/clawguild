@@ -48,9 +48,7 @@ export function MultiDeploymentForm({ agents, onSuccess }: MultiDeploymentFormPr
     <form onSubmit={handleSubmit} className="space-y-4 border rounded-2xl p-6 bg-card shadow-sm">
       <div>
         <h3 className="text-lg font-semibold">Deploy Multiple Agents</h3>
-        <p className="text-sm text-muted-foreground">
-          Launch a shared VPS for multiple agents.
-        </p>
+        <p className="text-sm text-muted-foreground">Launch a shared VPS for multiple agents.</p>
       </div>
 
       <div>

@@ -4,7 +4,13 @@ import { useEffect, useState } from 'react';
 import { api, DeploymentResponse } from '@/lib/api';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { RefreshCw, Terminal } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 
@@ -36,7 +42,7 @@ export function VpsLogsViewer() {
 
   const loadLogs = async (deploymentId: string) => {
     if (!deploymentId) return;
-    
+
     try {
       setLoadingLogs(true);
       const logData = await api.getDeploymentLogs(deploymentId, lines);
@@ -107,12 +113,7 @@ export function VpsLogsViewer() {
             <CardTitle>Debug Console</CardTitle>
             <CardDescription>Trace errors and inspect deployment logs in real time</CardDescription>
           </div>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={loadDeployments}
-            disabled={refreshing}
-          >
+          <Button variant="outline" size="sm" onClick={loadDeployments} disabled={refreshing}>
             <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
             Refresh
           </Button>
@@ -122,10 +123,7 @@ export function VpsLogsViewer() {
         <div className="flex items-center gap-4">
           <div className="flex-1">
             <label className="text-sm font-medium mb-2 block">Select Deployment</label>
-            <Select
-              value={selectedDeployment || ''}
-              onValueChange={setSelectedDeployment}
-            >
+            <Select value={selectedDeployment || ''} onValueChange={setSelectedDeployment}>
               <SelectTrigger>
                 <SelectValue placeholder="Select a deployment" />
               </SelectTrigger>
@@ -145,10 +143,7 @@ export function VpsLogsViewer() {
           </div>
           <div className="w-32">
             <label className="text-sm font-medium mb-2 block">Lines</label>
-            <Select
-              value={lines.toString()}
-              onValueChange={(v) => setLines(parseInt(v))}
-            >
+            <Select value={lines.toString()} onValueChange={(v) => setLines(parseInt(v))}>
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>

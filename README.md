@@ -33,16 +33,18 @@ A Rust-based orchestrator for deploying and managing multiple Claw runtimes acro
 
 1. Clone the repository
 2. Install dependencies:
+
    ```bash
    # Rust dependencies
    cargo build
-   
+
    # Frontend dependencies
    cd dashboard
    pnpm install
    ```
 
 3. Start PostgreSQL:
+
    ```bash
    # Using Docker
    docker run -d -p 5432:5432 \\
@@ -57,12 +59,14 @@ A Rust-based orchestrator for deploying and managing multiple Claw runtimes acro
    - Optional: set `API_KEY` to require `x-api-key` on API requests
 
 5. Start the API server (it will run migrations automatically):
+
    ```bash
    cd api-server
    cargo run
    ```
 
 6. Start the dashboard:
+
    ```bash
    cd dashboard
    pnpm install

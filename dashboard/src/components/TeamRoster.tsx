@@ -60,7 +60,9 @@ export function TeamRoster({ teamId }: TeamRosterProps) {
                   <StatusIndicator status={member.status} />
                 </div>
               </div>
-              <p className="text-sm text-muted-foreground leading-relaxed">{member.responsibility}</p>
+              <p className="text-sm text-muted-foreground leading-relaxed">
+                {member.responsibility}
+              </p>
             </div>
           </div>
         ))}
