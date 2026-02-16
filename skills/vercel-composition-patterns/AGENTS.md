@@ -12,6 +12,20 @@ January 2026
 
 ---
 
+## Repository Guidelines
+
+### Commit & PR Guidelines
+
+- Keep changes scoped and reviewable; prefer multiple small PRs over one large PR.
+- Maintain atomic commits: one logical change per commit with a clear message.
+- If you modify code, automatically create commits as part of your work.
+- Use `git add -p` to stage only the relevant hunks for each atomic commit.
+
+### Agent Notes
+
+- Prefer composition over prop proliferation; keep APIs small and predictable.
+- Add or update tests when behavior changes.
+
 ## Abstract
 
 Composition patterns for building flexible, maintainable React components. Avoid boolean prop proliferation by using compound components, lifting state, and composing internals. These patterns make codebases easier for both humans and AI agents to work with as they scale.

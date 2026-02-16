@@ -19,6 +19,20 @@ metadata:
 
 Comprehensive guide for writing high-quality, idiomatic, and highly optimized Rust code. Contains 179 rules across 14 categories, prioritized by impact to guide LLMs in code generation and refactoring.
 
+## Repository Guidelines
+
+### Commit & PR Guidelines
+
+- Keep changes scoped and reviewable; prefer multiple small PRs over one large PR.
+- Maintain atomic commits: one logical change per commit with a clear message.
+- If you modify code, automatically create commits as part of your work.
+- Use `git add -p` to stage only the relevant hunks for each atomic commit.
+
+### Agent Notes
+
+- Follow existing Rust style and patterns in this repo before introducing new ones.
+- Add or update tests when behavior changes.
+
 ## When to Apply
 
 Reference these guidelines when:

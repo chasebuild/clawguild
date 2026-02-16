@@ -12,6 +12,20 @@ January 2026
 
 ---
 
+## Repository Guidelines
+
+### Commit & PR Guidelines
+
+- Keep changes scoped and reviewable; prefer multiple small PRs over one large PR.
+- Maintain atomic commits: one logical change per commit with a clear message.
+- If you modify code, automatically create commits as part of your work.
+- Use `git add -p` to stage only the relevant hunks for each atomic commit.
+
+### Agent Notes
+
+- Prefer minimal, performance-focused diffs that align with existing patterns.
+- Add or update tests when behavior changes.
+
 ## Abstract
 
 Comprehensive performance optimization guide for React and Next.js applications, designed for AI agents and LLMs. Contains 40+ rules across 8 categories, prioritized by impact from critical (eliminating waterfalls, reducing bundle size) to incremental (advanced patterns). Each rule includes detailed explanations, real-world examples comparing incorrect vs. correct implementations, and specific impact metrics to guide automated refactoring and code generation.
