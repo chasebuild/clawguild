@@ -12,16 +12,30 @@ January 2026
 
 ---
 
-## Repository Guidelines
+## Project Structure & Module Organization
 
-### Commit & PR Guidelines
+- Skill root: `skills/vercel-composition-patterns/`
+- Primary docs: `AGENTS.md`, `SKILL.md`
+- Rule reference content: `rules/`
+
+## Build, Test, and Development Commands
+
+- None. This skill is reference content only.
+
+## Coding Style & Naming Conventions
+
+- Keep the current Markdown structure and headings.
+- Preserve rule IDs and existing link targets in `rules/`.
+- Prefer concise, action-oriented bullets.
+
+## Commit & Pull Request Guidelines
 
 - Keep changes scoped and reviewable; prefer multiple small PRs over one large PR.
 - Maintain atomic commits: one logical change per commit with a clear message.
 - If you modify code, automatically create commits as part of your work.
 - Use `git add -p` to stage only the relevant hunks for each atomic commit.
 
-### Agent Notes
+## Agent Notes
 
 - Prefer composition over prop proliferation; keep APIs small and predictable.
 - Add or update tests when behavior changes.

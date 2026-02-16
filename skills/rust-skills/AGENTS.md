@@ -19,21 +19,38 @@ metadata:
 
 Comprehensive guide for writing high-quality, idiomatic, and highly optimized Rust code. Contains 179 rules across 14 categories, prioritized by impact to guide LLMs in code generation and refactoring.
 
-## Repository Guidelines
+## Project Structure & Module Organization
 
-### Commit & PR Guidelines
+- Skill root: `skills/rust-skills/`
+- Primary docs: `AGENTS.md`, `CLAUDE.md`, `SKILL.md`
+- Rule reference content: `rules/`
+- License: `LICENSE`
+
+## Build, Test, and Development Commands
+
+- None. This skill is reference content only.
+
+## Coding Style & Naming Conventions
+
+- Keep the current Markdown structure and headings.
+- Preserve rule IDs and existing link targets in `rules/`.
+- Prefer concise, action-oriented bullets.
+
+## Commit & Pull Request Guidelines
 
 - Keep changes scoped and reviewable; prefer multiple small PRs over one large PR.
 - Maintain atomic commits: one logical change per commit with a clear message.
 - If you modify code, automatically create commits as part of your work.
 - Use `git add -p` to stage only the relevant hunks for each atomic commit.
 
-### Agent Notes
+## Agent Notes
 
 - Follow existing Rust style and patterns in this repo before introducing new ones.
 - Add or update tests when behavior changes.
 
-## When to Apply
+## Skill Scope & Applicability
+
+### When to Apply
 
 Reference these guidelines when:
 
