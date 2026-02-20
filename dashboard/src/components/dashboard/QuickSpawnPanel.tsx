@@ -4,6 +4,37 @@ import { useEffect, useRef, useState } from 'react';
 import { TemplateChips } from './TemplateChips';
 import { FieldErrors, NoticeState, QuickSpawnDraft, SpawnTemplate, SpawnTemplateId } from './types';
 
+const RESPONSIBILITY_SUGGESTIONS = [
+  'Handle inbound support requests and issue triage',
+  'Collect references and produce concise synthesis',
+  'Automate runbooks and monitor deployment health',
+  'Coordinate deployments and verify service uptime',
+];
+
+const MODEL_ENDPOINT_SUGGESTIONS = [
+  'https://api.openai.com/v1',
+  'https://api.anthropic.com/v1',
+  'https://openclaw.example.com/v1',
+];
+
+const REGION_SUGGESTIONS = ['iad', 'sfo', 'ewr', 'fra', 'sin'];
+
+const PERSONALITY_SUGGESTIONS = [
+  'Helpful, calm, and concise',
+  'Analytical and detail-oriented',
+  'Pragmatic and action-driven',
+  'Direct and execution-focused',
+];
+
+const SKILLS_SUGGESTIONS = [
+  'triage,customer-support',
+  'research,synthesis',
+  'deployment,monitoring,automation',
+  'docs,qa,incident-response',
+];
+
+const ALLOWLIST_SUGGESTIONS = ['telegram:12345', 'telegram:12345,*', '*'];
+
 interface QuickSpawnPanelProps {
   draft: QuickSpawnDraft;
   errors: FieldErrors;
@@ -33,6 +64,25 @@ export function QuickSpawnPanel({
 }: QuickSpawnPanelProps) {
   const [showAdvanced, setShowAdvanced] = useState(false);
   const nameInputRef = useRef<HTMLInputElement>(null);
+  const activeTemplateData = templates.find((template) => template.id === activeTemplate);
+  const nameSuggestions = templates
+    .map((template) => template.defaults.namePrefix)
+    .filter(Boolean)
+    .flatMap((prefix) => [`${prefix}-01`, `${prefix}-02`, `${prefix}-alpha`]);
+
+  const setupChecklist = [
+    { label: 'Pick a template', done: Boolean(activeTemplateData) },
+    { label: 'Set a unique agent name', done: draft.name.trim().length > 0 },
+    { label: 'Choose provider and runtime', done: Boolean(draft.provider && draft.runtime) },
+    {
+      label: `Add model credentials for ${draft.model_provider}`,
+      done: draft.model_provider === 'openclaw' || draft.model_api_key.trim().length > 0,
+    },
+    {
+      label: 'If Telegram is enabled, add bot token',
+      done: !draft.telegramEnabled || draft.telegramBotToken.trim().length > 0,
+    },
+  ];
 
   useEffect(() => {
     nameInputRef.current?.focus();
@@ -57,6 +107,34 @@ export function QuickSpawnPanel({
         activeTemplate={activeTemplate}
         onSelect={onTemplateSelect}
       />
+
+      <section className="rounded-lg border border-border bg-panel-row p-4">
+        <div className="flex items-center justify-between gap-3">
+          <h4 className="text-sm font-semibold text-foreground">Guided setup</h4>
+          {activeTemplateData ? (
+            <span className="text-xs text-muted-foreground">{activeTemplateData.description}</span>
+          ) : null}
+        </div>
+        <p className="mt-1 text-xs text-muted-foreground">
+          Use suggestion dropdowns in fields to fill common values quickly.
+        </p>
+        <ul className="mt-3 space-y-1.5 text-xs">
+          {setupChecklist.map((item) => (
+            <li key={item.label} className="flex items-center gap-2 text-muted-foreground">
+              <span
+                className={
+                  item.done
+                    ? 'inline-flex h-4 w-4 items-center justify-center rounded-full bg-emerald-500/20 text-[10px] text-emerald-200'
+                    : 'inline-flex h-4 w-4 items-center justify-center rounded-full border border-border text-[10px] text-muted-foreground'
+                }
+              >
+                {item.done ? '✓' : '•'}
+              </span>
+              <span>{item.label}</span>
+            </li>
+          ))}
+        </ul>
+      </section>
 
       {notice && (
         <div
@@ -92,6 +170,7 @@ export function QuickSpawnPanel({
           <input
             ref={nameInputRef}
             type="text"
+            list="quickspawn-name-suggestions"
             value={draft.name}
             onChange={(event) => setField('name', event.target.value)}
             className="input-dark"
@@ -101,9 +180,14 @@ export function QuickSpawnPanel({
         </Field>
 
         <div className="grid gap-3 md:grid-cols-2">
-          <Field label="Responsibility" error={errors.responsibility}>
+          <Field
+            label="Responsibility"
+            error={errors.responsibility}
+            hint="Describe one clear mission for better first-task quality."
+          >
             <input
               type="text"
+              list="quickspawn-responsibility-suggestions"
               value={draft.responsibility}
               onChange={(event) => setField('responsibility', event.target.value)}
               className="input-dark"
@@ -177,9 +261,14 @@ export function QuickSpawnPanel({
           </Field>
         </div>
 
-        <Field label="Model endpoint" error={errors.model_endpoint}>
+        <Field
+          label="Model endpoint"
+          error={errors.model_endpoint}
+          hint="Optional for OpenClaw, usually required for BYOM."
+        >
           <input
             type="text"
+            list="quickspawn-endpoint-suggestions"
             value={draft.model_endpoint}
             onChange={(event) => setField('model_endpoint', event.target.value)}
             className="input-dark"
@@ -196,7 +285,11 @@ export function QuickSpawnPanel({
               className="input-dark"
             />
           </Field>
-          <Field label="Discord channel ID" error={errors.discord_channel_id}>
+          <Field
+            label="Discord channel ID"
+            error={errors.discord_channel_id}
+            hint="Paste the numeric channel ID from Discord developer mode."
+          >
             <input
               type="text"
               value={draft.discord_channel_id}
@@ -244,9 +337,14 @@ export function QuickSpawnPanel({
             </Field>
           </div>
           <div className="grid gap-3 md:grid-cols-2">
-            <Field label="DM allowlist" error={errors.telegramAllowFrom}>
+            <Field
+              label="DM allowlist"
+              error={errors.telegramAllowFrom}
+              hint='Use "*" only if DM policy is open.'
+            >
               <input
                 type="text"
+                list="quickspawn-allowlist-suggestions"
                 value={draft.telegramAllowFrom}
                 onChange={(event) => setField('telegramAllowFrom', event.target.value)}
                 className="input-dark"
@@ -273,6 +371,7 @@ export function QuickSpawnPanel({
           <Field label="Group allowlist" error={errors.telegramGroupAllowFrom}>
             <input
               type="text"
+              list="quickspawn-allowlist-suggestions"
               value={draft.telegramGroupAllowFrom}
               onChange={(event) => setField('telegramGroupAllowFrom', event.target.value)}
               className="input-dark"
@@ -314,6 +413,7 @@ export function QuickSpawnPanel({
             <Field label="Region" error={errors.region}>
               <input
                 type="text"
+                list="quickspawn-region-suggestions"
                 value={draft.region}
                 onChange={(event) => setField('region', event.target.value)}
                 className="input-dark"
@@ -331,6 +431,7 @@ export function QuickSpawnPanel({
             <Field label="Personality" error={errors.personality}>
               <input
                 type="text"
+                list="quickspawn-personality-suggestions"
                 value={draft.personality}
                 onChange={(event) => setField('personality', event.target.value)}
                 className="input-dark"
@@ -338,9 +439,14 @@ export function QuickSpawnPanel({
               />
             </Field>
             <div className="md:col-span-2">
-              <Field label="Skills (comma-separated)" error={errors.skills}>
+              <Field
+                label="Skills (comma-separated)"
+                error={errors.skills}
+                hint="Choose 2-4 skills for focused behavior."
+              >
                 <input
                   type="text"
+                  list="quickspawn-skills-suggestions"
                   value={draft.skills}
                   onChange={(event) => setField('skills', event.target.value)}
                   className="input-dark"
@@ -359,6 +465,42 @@ export function QuickSpawnPanel({
           {submitting ? 'Creating...' : 'Create and deploy agent'}
         </button>
       </form>
+
+      <datalist id="quickspawn-name-suggestions">
+        {nameSuggestions.map((item) => (
+          <option key={item} value={item} />
+        ))}
+      </datalist>
+      <datalist id="quickspawn-responsibility-suggestions">
+        {RESPONSIBILITY_SUGGESTIONS.map((item) => (
+          <option key={item} value={item} />
+        ))}
+      </datalist>
+      <datalist id="quickspawn-endpoint-suggestions">
+        {MODEL_ENDPOINT_SUGGESTIONS.map((item) => (
+          <option key={item} value={item} />
+        ))}
+      </datalist>
+      <datalist id="quickspawn-region-suggestions">
+        {REGION_SUGGESTIONS.map((item) => (
+          <option key={item} value={item} />
+        ))}
+      </datalist>
+      <datalist id="quickspawn-personality-suggestions">
+        {PERSONALITY_SUGGESTIONS.map((item) => (
+          <option key={item} value={item} />
+        ))}
+      </datalist>
+      <datalist id="quickspawn-skills-suggestions">
+        {SKILLS_SUGGESTIONS.map((item) => (
+          <option key={item} value={item} />
+        ))}
+      </datalist>
+      <datalist id="quickspawn-allowlist-suggestions">
+        {ALLOWLIST_SUGGESTIONS.map((item) => (
+          <option key={item} value={item} />
+        ))}
+      </datalist>
     </section>
   );
 }
@@ -367,11 +509,13 @@ function Field({
   label,
   error,
   required,
+  hint,
   children,
 }: {
   label: string;
   error?: string;
   required?: boolean;
+  hint?: string;
   children: React.ReactNode;
 }) {
   return (
@@ -381,6 +525,7 @@ function Field({
         {required ? ' *' : ''}
       </span>
       {children}
+      {hint ? <span className="text-xs text-muted-foreground">{hint}</span> : null}
       {error ? <span className="text-xs text-rose-300">{error}</span> : null}
     </label>
   );
