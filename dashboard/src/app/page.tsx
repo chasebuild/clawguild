@@ -1,32 +1,89 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
-import { AgentCard } from '@/components/AgentCard';
-import { DeploymentForm } from '@/components/DeploymentForm';
-import { MultiDeploymentForm } from '@/components/MultiDeploymentForm';
-import { TeamRoster } from '@/components/TeamRoster';
-import { TeamForm } from '@/components/TeamForm';
-import { TeamAssignmentForm } from '@/components/TeamAssignmentForm';
-import { VpsLogsViewer } from '@/components/VpsLogsViewer';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { TaskManager } from '@/components/TaskManager';
+import { VpsLogsViewer } from '@/components/VpsLogsViewer';
+import { Badge } from '@/components/ui/badge';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   api,
+  Agent,
+  CreateAgentRequest,
   DeploymentResponse,
   ServerHealthResponse,
   ServerStatusResponse,
   Team,
 } from '@/lib/api';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Badge } from '@/components/ui/badge';
+import { CommandWorkspace } from '@/components/dashboard/CommandWorkspace';
+import { buildOpenClawRuntimeConfig, validateTelegramDraft } from '@/components/dashboard/telegram';
+import {
+  CommandFilters,
+  FieldErrors,
+  NoticeState,
+  OrchestrationMode,
+  QuickSpawnDraft,
+  SpawnTemplate,
+  SpawnTemplateId,
+} from '@/components/dashboard/types';
+import { OrchestrationBuilder } from '@/components/dashboard/OrchestrationBuilder';
 
-interface Agent {
-  id: string;
-  name: string;
-  role: 'master' | 'slave';
-  status: 'pending' | 'deploying' | 'running' | 'stopped' | 'error';
-  responsibility?: string;
-  emoji?: string;
-}
+const spawnTemplates: SpawnTemplate[] = [
+  {
+    id: 'support',
+    label: 'Support',
+    description: 'Handle triage and customer-facing responses.',
+    defaults: {
+      namePrefix: 'support-agent',
+      responsibility: 'Handle inbound support requests and issue triage',
+      emoji: '🛟',
+      personality: 'Helpful, calm, and concise',
+      skills: 'triage,customer-support',
+    },
+  },
+  {
+    id: 'research',
+    label: 'Research',
+    description: 'Summarize information and validate sources.',
+    defaults: {
+      namePrefix: 'research-agent',
+      responsibility: 'Collect references and produce concise synthesis',
+      emoji: '🔎',
+      personality: 'Analytical and detail-oriented',
+      skills: 'research,synthesis',
+    },
+  },
+  {
+    id: 'ops',
+    label: 'Ops',
+    description: 'Automate deployment and maintenance workflows.',
+    defaults: {
+      namePrefix: 'ops-agent',
+      responsibility: 'Automate runbooks and monitor deployment health',
+      emoji: '🛠️',
+      personality: 'Pragmatic and action-driven',
+      skills: 'deployment,monitoring,automation',
+    },
+  },
+  {
+    id: 'custom',
+    label: 'Custom',
+    description: 'Start from a blank custom profile.',
+    defaults: {
+      namePrefix: 'custom-agent',
+      responsibility: '',
+      emoji: '🧭',
+      personality: '',
+      skills: '',
+    },
+  },
+];
+
+const defaultFilters: CommandFilters = {
+  search: '',
+  status: 'all',
+  role: 'all',
+  runtime: 'all',
+};
 
 export default function Home() {
   const [agents, setAgents] = useState<Agent[]>([]);
@@ -34,14 +91,20 @@ export default function Home() {
   const [deployments, setDeployments] = useState<DeploymentResponse[]>([]);
   const [serverStatus, setServerStatus] = useState<ServerStatusResponse | null>(null);
   const [serverHealth, setServerHealth] = useState<ServerHealthResponse | null>(null);
-  const [selectedTeamId, setSelectedTeamId] = useState<string | null>(null);
+  const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
+  const [filters, setFilters] = useState<CommandFilters>(defaultFilters);
+  const [activeTemplate, setActiveTemplate] = useState<SpawnTemplateId>('support');
+  const [quickSpawnDraft, setQuickSpawnDraft] = useState<QuickSpawnDraft>(() =>
+    createQuickSpawnDraft(spawnTemplates[0]),
+  );
+  const [quickSpawnErrors, setQuickSpawnErrors] = useState<FieldErrors>({});
+  const [quickSpawnSubmitting, setQuickSpawnSubmitting] = useState(false);
+  const [quickSpawnNotice, setQuickSpawnNotice] = useState<NoticeState | null>(null);
+  const [quickSpawnFocusSignal, setQuickSpawnFocusSignal] = useState(0);
+  const [orchestrationMode, setOrchestrationMode] = useState<OrchestrationMode>('single');
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    loadData();
-  }, []);
-
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     try {
       const [agentsData, teamsData, deploymentsData, statusData, healthData] = await Promise.all([
         api.listAgents(),
@@ -50,240 +113,269 @@ export default function Home() {
         api.getServerStatus(),
         api.getServerHealth(),
       ]);
+
       setAgents(agentsData);
       setTeams(teamsData);
       setDeployments(deploymentsData);
       setServerStatus(statusData);
       setServerHealth(healthData);
-      if (teamsData.length > 0 && !selectedTeamId) {
-        setSelectedTeamId(teamsData[0].id);
-      }
+      setSelectedAgentId((previous) => previous || agentsData[0]?.id || null);
     } catch (error) {
-      console.error('Failed to load data:', error);
+      console.error('Failed to load dashboard data:', error);
     } finally {
       setLoading(false);
     }
+  }, []);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
+
+  const systemStats = useMemo(() => {
+    const runningAgents = agents.filter((agent) => agent.status === 'running').length;
+    const errorAgents = agents.filter((agent) => agent.status === 'error').length;
+    const activeDeployments = deployments.filter(
+      (deployment) => deployment.status.toLowerCase() === 'running',
+    ).length;
+
+    return {
+      runningAgents,
+      errorAgents,
+      activeDeployments,
+      uptimeHours: serverHealth ? Math.floor(serverHealth.uptime_seconds / 3600) : 0,
+    };
+  }, [agents, deployments, serverHealth]);
+
+  const handleTemplateSelect = (template: SpawnTemplate) => {
+    setActiveTemplate(template.id);
+    const { namePrefix, ...defaults } = template.defaults;
+    setQuickSpawnDraft((previous) => ({
+      ...previous,
+      ...defaults,
+      name: namePrefix,
+    }));
+    setQuickSpawnFocusSignal((previous) => previous + 1);
   };
 
-  const agentStats = useMemo(() => {
-    const running = agents.filter((a) => a.status === 'running').length;
-    const deploying = agents.filter((a) => a.status === 'deploying').length;
-    const error = agents.filter((a) => a.status === 'error').length;
-    const stopped = agents.filter((a) => a.status === 'stopped').length;
-    return { running, deploying, error, stopped, total: agents.length };
-  }, [agents]);
+  const handleQuickSpawnSubmit = async () => {
+    const errors = validateQuickSpawn(quickSpawnDraft);
+    setQuickSpawnErrors(errors);
 
-  const deploymentStats = useMemo(() => {
-    const running = deployments.filter((d) => d.status.toLowerCase() === 'running').length;
-    const failed = deployments.filter((d) => d.status.toLowerCase() === 'failed').length;
-    return { running, failed, total: deployments.length };
-  }, [deployments]);
+    if (Object.keys(errors).length > 0) {
+      setQuickSpawnNotice({
+        tone: 'error',
+        message: 'Fix the highlighted fields before creating.',
+      });
+      return;
+    }
 
-  const errorAgents = useMemo(() => agents.filter((agent) => agent.status === 'error'), [agents]);
+    const payload: CreateAgentRequest = {
+      name: quickSpawnDraft.name.trim(),
+      role: quickSpawnDraft.role,
+      provider: quickSpawnDraft.provider,
+      region: quickSpawnDraft.region.trim() || undefined,
+      team_id: quickSpawnDraft.team_id.trim() || undefined,
+      runtime: quickSpawnDraft.runtime,
+      model_provider: quickSpawnDraft.model_provider,
+      model_api_key: quickSpawnDraft.model_api_key.trim() || undefined,
+      model_endpoint: quickSpawnDraft.model_endpoint.trim() || undefined,
+      personality: quickSpawnDraft.personality.trim() || undefined,
+      skills: quickSpawnDraft.skills
+        .split(',')
+        .map((entry) => entry.trim())
+        .filter(Boolean),
+      discord_bot_token: quickSpawnDraft.discord_bot_token.trim() || undefined,
+      discord_channel_id: quickSpawnDraft.discord_channel_id.trim() || undefined,
+      responsibility: quickSpawnDraft.responsibility.trim() || undefined,
+      emoji: quickSpawnDraft.emoji.trim() || undefined,
+      runtime_config:
+        quickSpawnDraft.runtime === 'openclaw'
+          ? buildOpenClawRuntimeConfig(quickSpawnDraft)
+          : undefined,
+    };
 
-  const errorDeployments = useMemo(
-    () => deployments.filter((deployment) => deployment.status.toLowerCase() === 'failed'),
-    [deployments],
-  );
+    setQuickSpawnSubmitting(true);
+
+    try {
+      const created = await api.createAgent(payload);
+      setAgents((previous) => [created, ...previous.filter((agent) => agent.id !== created.id)]);
+      setSelectedAgentId(created.id);
+      setQuickSpawnDraft((previous) => ({ ...previous, name: '' }));
+      setQuickSpawnErrors({});
+      setQuickSpawnNotice({
+        tone: 'success',
+        message: `Created ${created.name}. You can spawn another immediately.`,
+      });
+      setQuickSpawnFocusSignal((previous) => previous + 1);
+      void loadData();
+    } catch (error) {
+      console.error('Failed to create agent:', error);
+      setQuickSpawnNotice({
+        tone: 'error',
+        message: getErrorMessage(error, 'Failed to create agent. Please try again.'),
+      });
+    } finally {
+      setQuickSpawnSubmitting(false);
+    }
+  };
 
   return (
     <main className="app-shell">
-      <div className="container mx-auto px-6 py-10 space-y-10">
-        <header className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+      <div className="mx-auto max-w-[1400px] px-4 py-6 md:px-6 md:py-8">
+        <header className="panel-surface mb-5 flex flex-col gap-4 p-5 md:flex-row md:items-end md:justify-between">
           <div>
-            <p className="text-xs uppercase tracking-[0.3em] text-muted-foreground">
-              Agent Orchestration Platform
+            <p className="text-xs uppercase tracking-[0.24em] text-muted-foreground">
+              Agent orchestration platform
             </p>
-            <h1 className="text-4xl md:text-5xl font-semibold mt-2">ClawGuild Command Center</h1>
-            <p className="text-muted-foreground mt-3 max-w-xl">
-              Monitor live agent health, investigate errors, and dispatch new work without context
-              switching.
+            <h1 className="mt-2 text-3xl font-semibold text-foreground md:text-4xl">
+              ClawGuild Dashboard
+            </h1>
+            <p className="mt-2 text-sm text-muted-foreground">
+              Linear-style control surface for no-code agent spawning and orchestration.
             </p>
           </div>
-          <div className="flex flex-wrap gap-3">
-            <Badge variant={serverStatus?.status === 'running' ? 'default' : 'destructive'}>
+
+          <div className="flex flex-wrap gap-2">
+            <Badge variant={serverStatus?.status === 'running' ? 'secondary' : 'destructive'}>
               API {serverStatus?.status || 'unknown'}
             </Badge>
-            <Badge variant={serverStatus?.database_connected ? 'secondary' : 'destructive'}>
+            <Badge
+              variant={serverStatus?.database_connected ? 'secondary' : 'destructive'}
+              className="text-foreground"
+            >
               DB {serverStatus?.database_connected ? 'connected' : 'offline'}
             </Badge>
-            <Badge variant="secondary">{agentStats.running} running agents</Badge>
-            <Badge variant={agentStats.error > 0 ? 'destructive' : 'secondary'}>
-              {agentStats.error} errors
+            <Badge variant="secondary" className="text-foreground">
+              {systemStats.runningAgents} running agents
+            </Badge>
+            <Badge
+              variant={systemStats.errorAgents > 0 ? 'destructive' : 'secondary'}
+              className="text-foreground"
+            >
+              {systemStats.errorAgents} errors
+            </Badge>
+            <Badge variant="secondary" className="text-foreground">
+              {systemStats.activeDeployments} live deployments
+            </Badge>
+            <Badge variant="secondary" className="text-foreground">
+              {systemStats.uptimeHours}h uptime
             </Badge>
           </div>
         </header>
 
-        <Tabs defaultValue="command" className="space-y-6">
-          <TabsList className="bg-card/70 border rounded-full p-1">
+        <Tabs defaultValue="command" className="space-y-4">
+          <TabsList className="bg-panel-row h-auto rounded-lg border border-border/80 p-1">
             <TabsTrigger value="command">Command Center</TabsTrigger>
             <TabsTrigger value="orchestration">Orchestration</TabsTrigger>
-            <TabsTrigger value="debug">Debugging</TabsTrigger>
+            <TabsTrigger value="debug">Debug</TabsTrigger>
           </TabsList>
 
-          <TabsContent value="command" className="space-y-6">
-            <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-              <div className="bg-card border rounded-2xl p-5 shadow-sm">
-                <p className="text-xs uppercase tracking-wide text-muted-foreground">API Health</p>
-                <div className="mt-3 flex items-end justify-between">
-                  <div>
-                    <p className="text-2xl font-semibold">{serverStatus?.status || 'unknown'}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {serverStatus?.version ? `v${serverStatus.version}` : 'No version'}
-                    </p>
-                  </div>
-                  <div className="text-xs text-muted-foreground">
-                    {serverStatus?.timestamp
-                      ? new Date(serverStatus.timestamp).toLocaleTimeString()
-                      : '—'}
-                  </div>
-                </div>
-              </div>
-              <div className="bg-card border rounded-2xl p-5 shadow-sm">
-                <p className="text-xs uppercase tracking-wide text-muted-foreground">Database</p>
-                <div className="mt-3 flex items-end justify-between">
-                  <div>
-                    <p className="text-2xl font-semibold">
-                      {serverStatus?.database_connected ? 'Connected' : 'Offline'}
-                    </p>
-                    <p className="text-xs text-muted-foreground">Postgres</p>
-                  </div>
-                  <div className="text-xs text-muted-foreground">
-                    {serverHealth
-                      ? `${Math.floor(serverHealth.uptime_seconds / 3600)}h uptime`
-                      : '—'}
-                  </div>
-                </div>
-              </div>
-              <div className="bg-card border rounded-2xl p-5 shadow-sm">
-                <p className="text-xs uppercase tracking-wide text-muted-foreground">Agents</p>
-                <div className="mt-3 space-y-1">
-                  <p className="text-2xl font-semibold">{agentStats.running} running</p>
-                  <p className="text-xs text-muted-foreground">
-                    {agentStats.deploying} deploying · {agentStats.error} errors ·{' '}
-                    {agentStats.stopped} stopped
-                  </p>
-                </div>
-              </div>
-              <div className="bg-card border rounded-2xl p-5 shadow-sm">
-                <p className="text-xs uppercase tracking-wide text-muted-foreground">Deployments</p>
-                <div className="mt-3 space-y-1">
-                  <p className="text-2xl font-semibold">{deploymentStats.running} live</p>
-                  <p className="text-xs text-muted-foreground">
-                    {deploymentStats.failed} failed · {deploymentStats.total} total
-                  </p>
-                </div>
-              </div>
-            </section>
+          <TabsContent value="command" className="mt-0">
+            <CommandWorkspace
+              agents={agents}
+              deployments={deployments}
+              teams={teams}
+              loading={loading}
+              filters={filters}
+              selectedAgentId={selectedAgentId}
+              quickSpawnDraft={quickSpawnDraft}
+              quickSpawnErrors={quickSpawnErrors}
+              quickSpawnSubmitting={quickSpawnSubmitting}
+              quickSpawnNotice={quickSpawnNotice}
+              activeTemplate={activeTemplate}
+              templates={spawnTemplates}
+              focusSignal={quickSpawnFocusSignal}
+              onFiltersChange={setFilters}
+              onSelectAgent={setSelectedAgentId}
+              onDraftChange={setQuickSpawnDraft}
+              onTemplateSelect={handleTemplateSelect}
+              onSubmitQuickSpawn={handleQuickSpawnSubmit}
+              onDismissQuickSpawnNotice={() => setQuickSpawnNotice(null)}
+            />
+          </TabsContent>
 
-            <section className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
-              <div className="bg-card border rounded-2xl p-6 shadow-sm space-y-4">
-                <div>
-                  <h2 className="text-xl font-semibold">Active Alerts</h2>
-                  <p className="text-sm text-muted-foreground">
-                    Quick glance at agents or deployments that need attention.
-                  </p>
-                </div>
-                {errorAgents.length === 0 && errorDeployments.length === 0 ? (
-                  <div className="text-sm text-muted-foreground">
-                    No active incidents. Everything is running smoothly.
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    {errorAgents.map((agent) => (
-                      <div
-                        key={agent.id}
-                        className="flex items-center justify-between rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm"
-                      >
-                        <span>{agent.name} is in error state</span>
-                        <Badge variant="destructive">Agent</Badge>
-                      </div>
-                    ))}
-                    {errorDeployments.map((deployment) => (
-                      <div
-                        key={deployment.id}
-                        className="flex items-center justify-between rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm"
-                      >
-                        <span>Deployment {deployment.id.slice(0, 8)} failed</span>
-                        <Badge variant="secondary">Deployment</Badge>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
+          <TabsContent value="orchestration" className="mt-0 space-y-4">
+            <OrchestrationBuilder
+              mode={orchestrationMode}
+              agents={agents}
+              teams={teams}
+              onModeChange={setOrchestrationMode}
+              onSuccess={loadData}
+            />
 
-              <div className="space-y-4">
-                {teams.length > 0 && selectedTeamId && (
-                  <div>
-                    <label className="text-sm font-medium mb-2 block">Active Team</label>
-                    <select
-                      value={selectedTeamId}
-                      onChange={(e) => setSelectedTeamId(e.target.value)}
-                      className="border rounded-md px-3 py-2 bg-background w-full"
-                    >
-                      {teams.map((team) => (
-                        <option key={team.id} value={team.id}>
-                          {team.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                )}
-                {selectedTeamId ? (
-                  <TeamRoster teamId={selectedTeamId} />
-                ) : (
-                  <div className="bg-card border rounded-2xl p-6 text-sm text-muted-foreground">
-                    Create a team to see the live roster here.
-                  </div>
-                )}
-              </div>
-            </section>
-
-            <section className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h2 className="text-xl font-semibold">Live Agents</h2>
-                  <p className="text-sm text-muted-foreground">Track status across the swarm.</p>
-                </div>
-                <button
-                  type="button"
-                  onClick={loadData}
-                  className="px-3 py-2 text-sm border rounded-md"
-                >
-                  Refresh
-                </button>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-                {loading ? (
-                  <div>Loading agents...</div>
-                ) : agents.length === 0 ? (
-                  <div className="col-span-full text-center text-muted-foreground">
-                    No agents deployed yet. Create your first agent team below.
-                  </div>
-                ) : (
-                  agents.map((agent) => <AgentCard key={agent.id} agent={agent} />)
-                )}
-              </div>
+            <section className="panel-surface p-5">
+              <TaskManager agents={agents} />
             </section>
           </TabsContent>
 
-          <TabsContent value="orchestration" className="space-y-6">
-            <div className="grid gap-6 lg:grid-cols-2">
-              <DeploymentForm onSuccess={loadData} />
-              <MultiDeploymentForm agents={agents} onSuccess={loadData} />
-            </div>
-            <div className="grid gap-6 lg:grid-cols-2">
-              <TeamForm agents={agents} onSuccess={loadData} />
-              <TeamAssignmentForm agents={agents} teams={teams} onSuccess={loadData} />
-            </div>
-            <TaskManager agents={agents} />
-          </TabsContent>
-
-          <TabsContent value="debug" className="space-y-6">
+          <TabsContent value="debug" className="mt-0">
             <VpsLogsViewer />
           </TabsContent>
         </Tabs>
       </div>
     </main>
   );
+}
+
+function createQuickSpawnDraft(template: SpawnTemplate): QuickSpawnDraft {
+  return {
+    name: template.defaults.namePrefix,
+    responsibility: template.defaults.responsibility || '',
+    emoji: template.defaults.emoji || '🧭',
+    role: 'slave',
+    provider: 'flyio',
+    region: '',
+    team_id: '',
+    runtime: 'openclaw',
+    model_provider: 'openclaw',
+    model_api_key: '',
+    model_endpoint: '',
+    personality: template.defaults.personality || '',
+    skills: template.defaults.skills || '',
+    discord_bot_token: '',
+    discord_channel_id: '',
+    telegramEnabled: false,
+    telegramBotToken: '',
+    telegramDmPolicy: 'pairing',
+    telegramAllowFrom: '',
+    telegramGroupPolicy: 'allowlist',
+    telegramGroupAllowFrom: '',
+    telegramRequireMention: true,
+  };
+}
+
+function validateQuickSpawn(draft: QuickSpawnDraft): FieldErrors {
+  const errors: FieldErrors = {};
+
+  if (!draft.name.trim()) {
+    errors.name = 'Agent name is required.';
+  }
+
+  if (draft.model_provider !== 'openclaw' && !draft.model_api_key.trim()) {
+    errors.model_api_key = 'Model API key is required for non-OpenClaw providers.';
+  }
+
+  if (draft.runtime === 'openclaw') {
+    Object.assign(errors, validateTelegramDraft(draft));
+  }
+
+  return errors;
+}
+
+function getErrorMessage(error: unknown, fallback: string): string {
+  if (error && typeof error === 'object' && 'response' in error) {
+    const response = (error as { response?: { data?: unknown } }).response;
+    if (response?.data && typeof response.data === 'object' && 'error' in response.data) {
+      const value = (response.data as { error?: unknown }).error;
+      if (typeof value === 'string' && value.length > 0) {
+        return value;
+      }
+    }
+  }
+
+  if (error instanceof Error && error.message) {
+    return error.message;
+  }
+
+  return fallback;
 }

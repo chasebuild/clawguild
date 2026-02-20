@@ -1,18 +1,8 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { api, DeploymentResponse } from '@/lib/api';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { RefreshCw, Terminal } from 'lucide-react';
-import { Badge } from '@/components/ui/badge';
+import { api, DeploymentResponse } from '@/lib/api';
 
 export function VpsLogsViewer() {
   const [deployments, setDeployments] = useState<DeploymentResponse[]>([]);
@@ -24,200 +14,186 @@ export function VpsLogsViewer() {
   const [lines, setLines] = useState(100);
   const [filter, setFilter] = useState<'all' | 'errors' | 'warnings'>('all');
 
-  const loadDeployments = async () => {
+  const loadDeployments = useCallback(async () => {
     try {
       setRefreshing(true);
       const data = await api.listDeployments();
       setDeployments(data);
-      if (data.length > 0 && !selectedDeployment) {
-        setSelectedDeployment(data[0].id);
-      }
+      setSelectedDeployment((previous) => previous || data[0]?.id || null);
     } catch (error) {
       console.error('Failed to load deployments:', error);
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  };
+  }, []);
 
-  const loadLogs = async (deploymentId: string) => {
-    if (!deploymentId) return;
+  const loadLogs = useCallback(
+    async (deploymentId: string) => {
+      if (!deploymentId) return;
 
-    try {
-      setLoadingLogs(true);
-      const logData = await api.getDeploymentLogs(deploymentId, lines);
-      setLogs(logData);
-    } catch (error) {
-      console.error('Failed to load logs:', error);
-      setLogs([`Error loading logs: ${error}`]);
-    } finally {
-      setLoadingLogs(false);
-    }
-  };
+      try {
+        setLoadingLogs(true);
+        const logData = await api.getDeploymentLogs(deploymentId, lines);
+        setLogs(logData);
+      } catch (error) {
+        console.error('Failed to load logs:', error);
+        setLogs([`Error loading logs: ${error}`]);
+      } finally {
+        setLoadingLogs(false);
+      }
+    },
+    [lines],
+  );
 
   useEffect(() => {
     loadDeployments();
-  }, []);
+  }, [loadDeployments]);
 
   useEffect(() => {
-    if (selectedDeployment) {
-      loadLogs(selectedDeployment);
-      const interval = setInterval(() => loadLogs(selectedDeployment), 10000); // Refresh every 10 seconds
-      return () => clearInterval(interval);
+    if (!selectedDeployment) {
+      return;
     }
-  }, [selectedDeployment, lines]);
 
-  const getStatusColor = (status: string) => {
-    switch (status.toLowerCase()) {
-      case 'running':
-        return 'default';
-      case 'creating':
-      case 'pending':
-        return 'secondary';
-      case 'failed':
-      case 'stopped':
-        return 'destructive';
-      default:
-        return 'outline';
-    }
-  };
+    void loadLogs(selectedDeployment);
+    const interval = setInterval(() => {
+      void loadLogs(selectedDeployment);
+    }, 10000);
 
-  const filteredLogs = logs.filter((log) => {
-    if (filter === 'errors') {
-      return /error|failed|panic|exception/i.test(log);
-    }
-    if (filter === 'warnings') {
-      return /warn|warning/i.test(log);
-    }
-    return true;
-  });
+    return () => clearInterval(interval);
+  }, [loadLogs, selectedDeployment]);
+
+  const filteredLogs = useMemo(
+    () =>
+      logs.filter((log) => {
+        if (filter === 'errors') return /error|failed|panic|exception/i.test(log);
+        if (filter === 'warnings') return /warn|warning/i.test(log);
+        return true;
+      }),
+    [filter, logs],
+  );
 
   if (loading) {
     return (
-      <Card>
-        <CardHeader>
-          <CardTitle>Debug Console</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div>Loading deployments...</div>
-        </CardContent>
-      </Card>
+      <section className="panel-surface p-5">
+        <h3 className="text-lg font-semibold text-foreground">Debug Console</h3>
+        <p className="mt-2 text-sm text-muted-foreground">Loading deployments...</p>
+      </section>
     );
   }
 
   return (
-    <Card>
-      <CardHeader>
+    <section className="panel-surface space-y-4 p-5">
+      <header className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h3 className="text-lg font-semibold text-foreground">Debug Console</h3>
+          <p className="text-sm text-muted-foreground">
+            Trace errors and inspect deployment logs in real time.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => void loadDeployments()}
+          disabled={refreshing}
+          className="inline-flex items-center gap-2 rounded-md border border-border bg-panel-row px-3 py-2 text-sm text-foreground hover:bg-panel-hover disabled:opacity-50"
+        >
+          <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
+          Refresh
+        </button>
+      </header>
+
+      <div className="grid gap-3 md:grid-cols-[1.6fr_0.5fr_0.6fr]">
+        <label className="space-y-1.5">
+          <span className="text-xs uppercase tracking-wide text-muted-foreground">Deployment</span>
+          <select
+            value={selectedDeployment || ''}
+            onChange={(event) => setSelectedDeployment(event.target.value)}
+            className="input-dark"
+          >
+            <option value="">Select deployment</option>
+            {deployments.map((deployment) => (
+              <option key={deployment.id} value={deployment.id}>
+                {deployment.provider} · {deployment.status}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <label className="space-y-1.5">
+          <span className="text-xs uppercase tracking-wide text-muted-foreground">Lines</span>
+          <select
+            value={lines.toString()}
+            onChange={(event) => setLines(parseInt(event.target.value, 10))}
+            className="input-dark"
+          >
+            <option value="50">50</option>
+            <option value="100">100</option>
+            <option value="200">200</option>
+            <option value="500">500</option>
+          </select>
+        </label>
+
+        <label className="space-y-1.5">
+          <span className="text-xs uppercase tracking-wide text-muted-foreground">Filter</span>
+          <select
+            value={filter}
+            onChange={(event) => setFilter(event.target.value as typeof filter)}
+            className="input-dark"
+          >
+            <option value="all">All logs</option>
+            <option value="errors">Errors</option>
+            <option value="warnings">Warnings</option>
+          </select>
+        </label>
+      </div>
+
+      <div className="space-y-2">
         <div className="flex items-center justify-between">
-          <div>
-            <CardTitle>Debug Console</CardTitle>
-            <CardDescription>Trace errors and inspect deployment logs in real time</CardDescription>
+          <div className="flex items-center gap-2">
+            <Terminal className="h-4 w-4 text-muted-foreground" />
+            <span className="text-sm font-medium text-foreground">Live logs</span>
           </div>
-          <Button variant="outline" size="sm" onClick={loadDeployments} disabled={refreshing}>
-            <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
-            Refresh
-          </Button>
+          {selectedDeployment ? (
+            <button
+              type="button"
+              onClick={() => void loadLogs(selectedDeployment)}
+              disabled={loadingLogs}
+              className="inline-flex items-center gap-2 rounded-md border border-border bg-panel-row px-3 py-1.5 text-xs text-foreground hover:bg-panel-hover disabled:opacity-50"
+            >
+              <RefreshCw className={`h-3.5 w-3.5 ${loadingLogs ? 'animate-spin' : ''}`} />
+              Reload
+            </button>
+          ) : null}
         </div>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <div className="flex items-center gap-4">
-          <div className="flex-1">
-            <label className="text-sm font-medium mb-2 block">Select Deployment</label>
-            <Select value={selectedDeployment || ''} onValueChange={setSelectedDeployment}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select a deployment" />
-              </SelectTrigger>
-              <SelectContent>
-                {deployments.map((deployment) => (
-                  <SelectItem key={deployment.id} value={deployment.id}>
-                    <div className="flex items-center gap-2">
-                      <span>{deployment.provider}</span>
-                      <Badge variant={getStatusColor(deployment.status)} className="text-xs">
-                        {deployment.status}
-                      </Badge>
-                    </div>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="w-32">
-            <label className="text-sm font-medium mb-2 block">Lines</label>
-            <Select value={lines.toString()} onValueChange={(v) => setLines(parseInt(v))}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="50">50</SelectItem>
-                <SelectItem value="100">100</SelectItem>
-                <SelectItem value="200">200</SelectItem>
-                <SelectItem value="500">500</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="w-40">
-            <label className="text-sm font-medium mb-2 block">Filter</label>
-            <Select value={filter} onValueChange={(v) => setFilter(v as typeof filter)}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Logs</SelectItem>
-                <SelectItem value="errors">Errors</SelectItem>
-                <SelectItem value="warnings">Warnings</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+        <div className="h-[28rem] overflow-auto rounded-xl border border-border bg-[#090d14] p-4 font-mono text-xs text-[#cbe8d5]">
+          {loadingLogs ? (
+            <div className="text-muted-foreground">Loading logs...</div>
+          ) : filteredLogs.length === 0 ? (
+            <div className="text-muted-foreground">No logs available</div>
+          ) : (
+            filteredLogs.map((log, index) => {
+              const isError = /error|failed|panic|exception/i.test(log);
+              const isWarn = /warn|warning/i.test(log);
+              const colorClass = isError
+                ? 'text-rose-300'
+                : isWarn
+                  ? 'text-amber-200'
+                  : 'text-emerald-200';
+              return (
+                <div key={`${index}-${log.slice(0, 12)}`} className={colorClass}>
+                  {log}
+                </div>
+              );
+            })
+          )}
         </div>
+      </div>
 
-        {selectedDeployment && (
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Terminal className="h-4 w-4" />
-                <span className="text-sm font-medium">Logs</span>
-              </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => loadLogs(selectedDeployment)}
-                disabled={loadingLogs}
-              >
-                <RefreshCw className={`h-4 w-4 mr-2 ${loadingLogs ? 'animate-spin' : ''}`} />
-                Reload
-              </Button>
-            </div>
-            <div className="bg-slate-950 text-emerald-300 font-mono text-xs p-4 rounded-xl h-96 overflow-auto border border-slate-800">
-              {loadingLogs ? (
-                <div className="text-gray-500">Loading logs...</div>
-              ) : filteredLogs.length === 0 ? (
-                <div className="text-gray-500">No logs available</div>
-              ) : (
-                filteredLogs.map((log, index) => {
-                  const isError = /error|failed|panic|exception/i.test(log);
-                  const isWarn = /warn|warning/i.test(log);
-                  const color = isError
-                    ? 'text-rose-300'
-                    : isWarn
-                      ? 'text-amber-200'
-                      : 'text-emerald-300';
-                  return (
-                    <div key={index} className={`mb-1 ${color}`}>
-                      {log}
-                    </div>
-                  );
-                })
-              )}
-            </div>
-          </div>
-        )}
-
-        {deployments.length === 0 && (
-          <div className="text-center text-muted-foreground py-8">
-            No deployments found. Deploy an agent to see logs.
-          </div>
-        )}
-      </CardContent>
-    </Card>
+      {deployments.length === 0 ? (
+        <div className="rounded-md border border-border bg-panel-row px-4 py-3 text-sm text-muted-foreground">
+          No deployments found. Deploy an agent to inspect logs.
+        </div>
+      ) : null}
+    </section>
   );
 }

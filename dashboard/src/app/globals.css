@@ -4,61 +4,43 @@
 
 @layer base {
   :root {
-    --background: 38 33% 96%;
-    --foreground: 204 35% 12%;
-    --card: 40 33% 98%;
-    --card-foreground: 204 35% 12%;
-    --popover: 40 33% 98%;
-    --popover-foreground: 204 35% 12%;
-    --primary: 195 58% 24%;
-    --primary-foreground: 40 33% 98%;
-    --secondary: 30 22% 90%;
-    --secondary-foreground: 204 35% 12%;
-    --muted: 30 20% 88%;
-    --muted-foreground: 204 12% 40%;
-    --accent: 18 70% 50%;
-    --accent-foreground: 40 33% 98%;
-    --destructive: 0 72% 52%;
-    --destructive-foreground: 40 33% 98%;
-    --border: 30 14% 82%;
-    --input: 30 14% 82%;
-    --ring: 195 58% 24%;
-    --radius: 0.9rem;
+    --background: 222 35% 7%;
+    --foreground: 220 22% 92%;
+    --card: 224 28% 10%;
+    --card-foreground: 220 22% 92%;
+    --popover: 224 28% 10%;
+    --popover-foreground: 220 22% 92%;
+    --primary: 156 78% 41%;
+    --primary-foreground: 220 35% 7%;
+    --secondary: 224 20% 18%;
+    --secondary-foreground: 220 22% 92%;
+    --muted: 223 20% 16%;
+    --muted-foreground: 220 10% 66%;
+    --accent: 224 20% 18%;
+    --accent-foreground: 220 22% 92%;
+    --destructive: 351 79% 58%;
+    --destructive-foreground: 220 22% 96%;
+    --border: 224 17% 22%;
+    --input: 224 17% 22%;
+    --ring: 156 78% 41%;
+    --radius: 0.75rem;
+
+    --panel: 224 30% 10%;
+    --panel-row: 224 25% 12%;
+    --panel-hover: 224 22% 16%;
+    --panel-selected: 224 35% 18%;
   }
 
-  .dark {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
-    --card: 222.2 84% 4.9%;
-    --card-foreground: 210 40% 98%;
-    --popover: 222.2 84% 4.9%;
-    --popover-foreground: 210 40% 98%;
-    --primary: 210 40% 98%;
-    --primary-foreground: 222.2 47.4% 11.2%;
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 212.7 26.8% 83.9%;
-  }
-}
-
-@layer base {
   * {
     @apply border-border;
   }
+
   body {
     @apply bg-background text-foreground;
     background-image:
-      radial-gradient(1200px 600px at 10% -10%, rgba(0, 0, 0, 0.06), transparent 60%),
-      radial-gradient(1000px 600px at 90% -20%, rgba(198, 93, 59, 0.12), transparent 55%),
-      linear-gradient(180deg, rgba(255, 255, 255, 0.7), rgba(255, 255, 255, 0.4));
+      radial-gradient(1100px 620px at 8% -10%, rgba(58, 130, 246, 0.14), transparent 55%),
+      radial-gradient(1100px 620px at 95% -15%, rgba(16, 185, 129, 0.1), transparent 50%),
+      linear-gradient(180deg, rgba(8, 10, 17, 0.95), rgba(9, 12, 19, 1));
     background-attachment: fixed;
   }
 }
@@ -66,19 +48,53 @@
 @layer utilities {
   .app-shell {
     @apply min-h-screen;
-    background-image:
-      radial-gradient(1200px 600px at 10% -10%, rgba(0, 0, 0, 0.06), transparent 60%),
-      radial-gradient(1000px 600px at 90% -20%, rgba(198, 93, 59, 0.12), transparent 55%),
-      linear-gradient(180deg, rgba(255, 255, 255, 0.8), rgba(255, 255, 255, 0.5));
-    background-attachment: fixed;
   }
 
-  .surface-glass {
-    background: rgba(255, 255, 255, 0.75);
-    backdrop-filter: blur(12px);
+  .panel-surface {
+    @apply rounded-xl border border-border/80 bg-card/95 shadow-[0_8px_32px_rgba(0,0,0,0.35)];
+  }
+
+  .input-dark {
+    @apply h-10 w-full rounded-md border border-border bg-background/80 px-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring;
   }
 
   .status-chip {
-    @apply inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-medium tracking-wide uppercase;
+    @apply inline-flex items-center gap-2 rounded-full border px-3 py-1 text-[11px] font-medium uppercase tracking-wide;
+  }
+
+  .status-badge {
+    @apply inline-flex w-fit items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide;
+  }
+
+  .status-running {
+    @apply border-emerald-300/45 bg-emerald-500/15 text-emerald-200;
+  }
+
+  .status-deploying {
+    @apply border-sky-300/45 bg-sky-500/15 text-sky-200;
+  }
+
+  .status-pending {
+    @apply border-amber-300/45 bg-amber-500/15 text-amber-200;
+  }
+
+  .status-stopped {
+    @apply border-slate-300/35 bg-slate-500/20 text-slate-200;
+  }
+
+  .status-error {
+    @apply border-rose-300/45 bg-rose-500/20 text-rose-200;
+  }
+
+  .bg-panel-row {
+    background-color: hsl(var(--panel-row));
+  }
+
+  .bg-panel-hover {
+    background-color: hsl(var(--panel-hover));
+  }
+
+  .bg-panel-selected {
+    background-color: hsl(var(--panel-selected));
   }
 }
