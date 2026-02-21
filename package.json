@@ -7,25 +7,12 @@
     "dev": "lerna run dev --scope dashboard --stream",
     "build": "lerna run build",
     "prepare": "husky install",
-    "lint-staged": "lint-staged"
+    "lint-staged": "lint-staged --config lint-staged.config.cjs"
   },
   "devDependencies": {
     "husky": "^9.1.7",
     "lint-staged": "^15.2.11",
     "lerna": "^8.1.5",
     "prettier": "^3.3.3"
-  },
-  "lint-staged": {
-    "dashboard/**/*.{ts,tsx}": [
-      "pnpm -C dashboard exec next lint --file",
-      "prettier --write"
-    ],
-    "**/*.{ts,tsx}": [
-      "prettier --write"
-    ],
-    "**/*.rs": [
-      "rustfmt --edition 2021",
-      "cargo clippy -- -D warnings"
-    ]
   }
 }
