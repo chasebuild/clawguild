@@ -25,6 +25,7 @@ export interface CreateAgentRequest {
   name: string;
   role: 'master' | 'slave';
   provider: 'railway' | 'flyio' | 'aws';
+  railway_api_key?: string;
   region?: string;
   team_id?: string;
   discord_bot_token?: string;
@@ -145,6 +146,7 @@ export const api = {
   async deployAgentsMulti(data: {
     agent_ids: string[];
     provider: 'railway' | 'flyio' | 'aws';
+    railway_api_key?: string;
     region?: string;
     telegram_settings?: TelegramSettings;
   }): Promise<DeploymentResponse> {

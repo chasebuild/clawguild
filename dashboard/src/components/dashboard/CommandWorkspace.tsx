@@ -26,6 +26,7 @@ interface CommandWorkspaceProps {
   quickSpawnErrors: FieldErrors;
   quickSpawnSubmitting: boolean;
   quickSpawnNotice: NoticeState | null;
+  hasRailwayApiKey: boolean;
   activeTemplate: SpawnTemplateId;
   templates: SpawnTemplate[];
   focusSignal: number;
@@ -48,6 +49,7 @@ export function CommandWorkspace({
   quickSpawnErrors,
   quickSpawnSubmitting,
   quickSpawnNotice,
+  hasRailwayApiKey,
   activeTemplate,
   templates,
   focusSignal,
@@ -107,6 +109,7 @@ export function CommandWorkspace({
             errors={quickSpawnErrors}
             submitting={quickSpawnSubmitting}
             notice={quickSpawnNotice}
+            hasRailwayApiKey={hasRailwayApiKey}
             activeTemplate={activeTemplate}
             templates={templates}
             focusSignal={focusSignal}

@@ -14,6 +14,7 @@ pub struct CreateAgentRequest {
     pub name: String,
     pub role: AgentRole,
     pub provider: VpsProvider,
+    pub railway_api_key: Option<String>,
     pub region: Option<String>,
     pub team_id: Option<Uuid>,
     pub discord_bot_token: Option<String>,
@@ -33,6 +34,7 @@ pub struct CreateAgentRequest {
 pub struct DeployMultiRequest {
     pub agent_ids: Vec<Uuid>,
     pub provider: VpsProvider,
+    pub railway_api_key: Option<String>,
     pub region: Option<String>,
     pub telegram_settings: Option<TelegramSettings>,
 }

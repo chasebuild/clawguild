@@ -6,6 +6,7 @@ use crate::runtime::RuntimeRegistry;
 use crate::storage::{repositories, Database};
 use anyhow::Result;
 use chrono::Utc;
+use std::sync::Arc;
 use uuid::Uuid;
 
 #[derive(Clone)]
@@ -29,12 +30,10 @@ impl DeploymentManager {
         agent: Agent,
         provider: ModelVpsProvider,
         region: Option<String>,
+        railway_api_key: Option<String>,
     ) -> Result<Deployment> {
         // Get the appropriate VPS provider adapter
-        let vps_provider = self
-            .vps_adapters
-            .get_provider(provider.clone())
-            .ok_or_else(|| anyhow::anyhow!("VPS provider {:?} not configured", provider))?;
+        let vps_provider = self.resolve_provider(provider.clone(), railway_api_key)?;
 
         // Create deployment record
         let deployment = Deployment {
@@ -146,15 +145,13 @@ impl DeploymentManager {
         agents: Vec<Agent>,
         provider: ModelVpsProvider,
         region: Option<String>,
+        railway_api_key: Option<String>,
     ) -> Result<Deployment> {
         if agents.is_empty() {
             anyhow::bail!("At least one agent required for multi-agent deploy");
         }
 
-        let vps_provider = self
-            .vps_adapters
-            .get_provider(provider.clone())
-            .ok_or_else(|| anyhow::anyhow!("VPS provider {:?} not configured", provider))?;
+        let vps_provider = self.resolve_provider(provider.clone(), railway_api_key)?;
 
         let agent_ids: Vec<Uuid> = agents.iter().map(|a| a.id).collect();
         let deployment = Deployment {
@@ -262,6 +259,32 @@ impl DeploymentManager {
             .ok_or_else(|| anyhow::anyhow!("Agent not found"))?;
 
         Ok(agent.status)
+    }
+
+    fn resolve_provider(
+        &self,
+        provider: ModelVpsProvider,
+        railway_api_key: Option<String>,
+    ) -> Result<Arc<dyn crate::adapters::VpsProvider>> {
+        match provider {
+            ModelVpsProvider::Railway => {
+                let api_key = railway_api_key
+                    .map(|value| value.trim().to_string())
+                    .filter(|value| !value.is_empty())
+                    .ok_or_else(|| {
+                        anyhow::anyhow!(
+                            "Railway API key is required. Provide railway_api_key in the request."
+                        )
+                    })?;
+                Ok(Arc::new(
+                    crate::adapters::railway::RailwayAdapter::from_api_key(api_key),
+                ))
+            }
+            _ => self
+                .vps_adapters
+                .get_provider(provider.clone())
+                .ok_or_else(|| anyhow::anyhow!("VPS provider {:?} not configured", provider)),
+        }
     }
 
     pub async fn destroy_agent(&self, agent_id: Uuid) -> Result<()> {

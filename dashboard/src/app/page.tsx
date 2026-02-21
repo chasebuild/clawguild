@@ -27,6 +27,8 @@ import {
 } from '@/components/dashboard/types';
 import { OrchestrationBuilder } from '@/components/dashboard/OrchestrationBuilder';
 
+const SUPPORTED_PROVIDER: CreateAgentRequest['provider'] = 'railway';
+
 const spawnTemplates: SpawnTemplate[] = [
   {
     id: 'support',
@@ -102,6 +104,7 @@ export default function Home() {
   const [quickSpawnNotice, setQuickSpawnNotice] = useState<NoticeState | null>(null);
   const [quickSpawnFocusSignal, setQuickSpawnFocusSignal] = useState(0);
   const [orchestrationMode, setOrchestrationMode] = useState<OrchestrationMode>('single');
+  const [railwayApiKey, setRailwayApiKey] = useState('');
   const [loading, setLoading] = useState(true);
 
   const loadData = useCallback(async () => {
@@ -145,6 +148,7 @@ export default function Home() {
       uptimeHours: serverHealth ? Math.floor(serverHealth.uptime_seconds / 3600) : 0,
     };
   }, [agents, deployments, serverHealth]);
+  const hasRailwayApiKey = railwayApiKey.trim().length > 0;
 
   const handleTemplateSelect = (template: SpawnTemplate) => {
     setActiveTemplate(template.id);
@@ -158,7 +162,7 @@ export default function Home() {
   };
 
   const handleQuickSpawnSubmit = async () => {
-    const errors = validateQuickSpawn(quickSpawnDraft);
+    const errors = validateQuickSpawn(quickSpawnDraft, hasRailwayApiKey);
     setQuickSpawnErrors(errors);
 
     if (Object.keys(errors).length > 0) {
@@ -172,8 +176,10 @@ export default function Home() {
     const payload: CreateAgentRequest = {
       name: quickSpawnDraft.name.trim(),
       role: quickSpawnDraft.role,
-      provider: quickSpawnDraft.provider,
-      region: quickSpawnDraft.region.trim() || undefined,
+      provider: SUPPORTED_PROVIDER,
+      railway_api_key: railwayApiKey.trim() || undefined,
+      region:
+        SUPPORTED_PROVIDER === 'railway' ? undefined : quickSpawnDraft.region.trim() || undefined,
       team_id: quickSpawnDraft.team_id.trim() || undefined,
       runtime: quickSpawnDraft.runtime,
       model_provider: quickSpawnDraft.model_provider,
@@ -222,44 +228,94 @@ export default function Home() {
   return (
     <main className="app-shell">
       <div className="mx-auto max-w-[1400px] px-4 py-6 md:px-6 md:py-8">
-        <header className="panel-surface mb-5 flex flex-col gap-4 p-5 md:flex-row md:items-end md:justify-between">
-          <div>
-            <p className="text-xs uppercase tracking-[0.24em] text-muted-foreground">
-              Agent orchestration platform
-            </p>
-            <h1 className="mt-2 text-3xl font-semibold text-foreground md:text-4xl">
-              ClawGuild Dashboard
-            </h1>
-            <p className="mt-2 text-sm text-muted-foreground">
-              Linear-style control surface for no-code agent spawning and orchestration.
-            </p>
+        <header className="panel-surface mb-5 space-y-4 p-5">
+          <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+            <div>
+              <p className="text-xs uppercase tracking-[0.24em] text-muted-foreground">
+                Agent orchestration platform
+              </p>
+              <h1 className="mt-2 text-3xl font-semibold text-foreground md:text-4xl">
+                ClawGuild Dashboard
+              </h1>
+              <p className="mt-2 text-sm text-muted-foreground">
+                Concrete control center for provisioning, deployment, and runtime monitoring.
+              </p>
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              <Badge variant={serverStatus?.status === 'running' ? 'secondary' : 'destructive'}>
+                API {serverStatus?.status || 'unknown'}
+              </Badge>
+              <Badge
+                variant={serverStatus?.database_connected ? 'secondary' : 'destructive'}
+                className="text-foreground"
+              >
+                DB {serverStatus?.database_connected ? 'connected' : 'offline'}
+              </Badge>
+              <Badge
+                variant={hasRailwayApiKey ? 'secondary' : 'destructive'}
+                className="text-foreground"
+              >
+                Railway token {hasRailwayApiKey ? 'loaded' : 'missing'}
+              </Badge>
+            </div>
           </div>
 
-          <div className="flex flex-wrap gap-2">
-            <Badge variant={serverStatus?.status === 'running' ? 'secondary' : 'destructive'}>
-              API {serverStatus?.status || 'unknown'}
-            </Badge>
-            <Badge
-              variant={serverStatus?.database_connected ? 'secondary' : 'destructive'}
-              className="text-foreground"
-            >
-              DB {serverStatus?.database_connected ? 'connected' : 'offline'}
-            </Badge>
-            <Badge variant="secondary" className="text-foreground">
-              {systemStats.runningAgents} running agents
-            </Badge>
-            <Badge
-              variant={systemStats.errorAgents > 0 ? 'destructive' : 'secondary'}
-              className="text-foreground"
-            >
-              {systemStats.errorAgents} errors
-            </Badge>
-            <Badge variant="secondary" className="text-foreground">
-              {systemStats.activeDeployments} live deployments
-            </Badge>
-            <Badge variant="secondary" className="text-foreground">
-              {systemStats.uptimeHours}h uptime
-            </Badge>
+          <div className="grid gap-4 lg:grid-cols-[1.45fr_1fr]">
+            <section className="rounded-xl border border-border bg-panel-row p-4">
+              <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
+                Mission snapshot
+              </p>
+              <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                <MetricCard label="Running agents" value={systemStats.runningAgents.toString()} />
+                <MetricCard
+                  label="Errors"
+                  value={systemStats.errorAgents.toString()}
+                  tone={systemStats.errorAgents > 0 ? 'danger' : 'default'}
+                />
+                <MetricCard
+                  label="Live deployments"
+                  value={systemStats.activeDeployments.toString()}
+                />
+                <MetricCard label="Uptime (hours)" value={systemStats.uptimeHours.toString()} />
+              </div>
+            </section>
+
+            <section className="rounded-xl border border-border bg-panel-row p-4">
+              <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
+                Deployment Credentials
+              </p>
+              <h2 className="mt-2 text-base font-semibold text-foreground">Railway API token</h2>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Required for all Railway deployments. The token is sent from this client when you
+                deploy.
+              </p>
+              <div className="mt-3 space-y-2">
+                <input
+                  type="password"
+                  value={railwayApiKey}
+                  onChange={(event) => setRailwayApiKey(event.target.value)}
+                  className="input-dark"
+                  placeholder="Enter Railway API token"
+                />
+                <div className="flex items-center justify-between gap-3 text-xs">
+                  <span className={hasRailwayApiKey ? 'text-emerald-200' : 'text-rose-300'}>
+                    {hasRailwayApiKey
+                      ? 'Token loaded for deployments.'
+                      : 'Token is required before deploy.'}
+                  </span>
+                  {hasRailwayApiKey ? (
+                    <button
+                      type="button"
+                      onClick={() => setRailwayApiKey('')}
+                      className="text-muted-foreground hover:text-foreground"
+                    >
+                      Clear
+                    </button>
+                  ) : null}
+                </div>
+              </div>
+            </section>
           </div>
         </header>
 
@@ -282,6 +338,7 @@ export default function Home() {
               quickSpawnErrors={quickSpawnErrors}
               quickSpawnSubmitting={quickSpawnSubmitting}
               quickSpawnNotice={quickSpawnNotice}
+              hasRailwayApiKey={hasRailwayApiKey}
               activeTemplate={activeTemplate}
               templates={spawnTemplates}
               focusSignal={quickSpawnFocusSignal}
@@ -299,6 +356,7 @@ export default function Home() {
               mode={orchestrationMode}
               agents={agents}
               teams={teams}
+              railwayApiKey={railwayApiKey}
               onModeChange={setOrchestrationMode}
               onSuccess={loadData}
             />
@@ -317,13 +375,36 @@ export default function Home() {
   );
 }
 
+function MetricCard({
+  label,
+  value,
+  tone = 'default',
+}: {
+  label: string;
+  value: string;
+  tone?: 'default' | 'danger';
+}) {
+  return (
+    <div
+      className={
+        tone === 'danger'
+          ? 'rounded-lg border border-rose-300/35 bg-rose-500/10 px-3 py-2'
+          : 'rounded-lg border border-border/80 bg-background/40 px-3 py-2'
+      }
+    >
+      <p className="text-[11px] uppercase tracking-wide text-muted-foreground">{label}</p>
+      <p className="mt-1 text-2xl font-semibold text-foreground">{value}</p>
+    </div>
+  );
+}
+
 function createQuickSpawnDraft(template: SpawnTemplate): QuickSpawnDraft {
   return {
     name: template.defaults.namePrefix,
     responsibility: template.defaults.responsibility || '',
     emoji: template.defaults.emoji || '🧭',
     role: 'slave',
-    provider: 'flyio',
+    provider: SUPPORTED_PROVIDER,
     region: '',
     team_id: '',
     runtime: 'openclaw',
@@ -344,7 +425,7 @@ function createQuickSpawnDraft(template: SpawnTemplate): QuickSpawnDraft {
   };
 }
 
-function validateQuickSpawn(draft: QuickSpawnDraft): FieldErrors {
+function validateQuickSpawn(draft: QuickSpawnDraft, hasRailwayApiKey: boolean): FieldErrors {
   const errors: FieldErrors = {};
 
   if (!draft.name.trim()) {
@@ -353,6 +434,10 @@ function validateQuickSpawn(draft: QuickSpawnDraft): FieldErrors {
 
   if (draft.model_provider !== 'openclaw' && !draft.model_api_key.trim()) {
     errors.model_api_key = 'Model API key is required for non-OpenClaw providers.';
+  }
+
+  if (!hasRailwayApiKey) {
+    errors.railway_api_key = 'Railway API token is required before deployment.';
   }
 
   if (draft.runtime === 'openclaw') {

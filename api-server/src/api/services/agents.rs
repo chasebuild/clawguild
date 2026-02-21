@@ -6,7 +6,7 @@ use crate::api::handlers::channels::{
     openclaw_telegram_defaults_from_adapters, OpenClawConfig,
 };
 use crate::api::handlers::AppState;
-use engine::models::{Agent, AgentRole, AgentRuntime, AgentStatus};
+use engine::models::{Agent, AgentRole, AgentRuntime, AgentStatus, VpsProvider};
 use engine::storage::repositories::{AgentRepository, TeamRepository};
 use uuid::Uuid;
 
@@ -20,6 +20,13 @@ impl<'a> AgentService<'a> {
     }
 
     pub async fn create_agent(&self, req: CreateAgentRequest) -> Result<AgentResponse, AppError> {
+        let railway_api_key = sanitize_optional_secret(req.railway_api_key.clone());
+        if matches!(&req.provider, VpsProvider::Railway) && railway_api_key.is_none() {
+            return Err(AppError::BadRequest(
+                "railway_api_key is required for Railway deployments".to_string(),
+            ));
+        }
+
         let mut discord_channels = None;
         let mut discord_channel_id = req.discord_channel_id.clone();
         if let Some(team_id) = req.team_id {
@@ -117,7 +124,7 @@ impl<'a> AgentService<'a> {
 
         self.state
             .deployment_manager
-            .deploy_agent(agent.clone(), req.provider, req.region)
+            .deploy_agent(agent.clone(), req.provider, req.region, railway_api_key)
             .await
             .map_err(AppError::Internal)?;
 
@@ -173,6 +180,13 @@ impl<'a> AgentService<'a> {
         &self,
         req: DeployMultiRequest,
     ) -> Result<engine::models::Deployment, AppError> {
+        let railway_api_key = sanitize_optional_secret(req.railway_api_key.clone());
+        if matches!(&req.provider, VpsProvider::Railway) && railway_api_key.is_none() {
+            return Err(AppError::BadRequest(
+                "railway_api_key is required for Railway deployments".to_string(),
+            ));
+        }
+
         if req.agent_ids.is_empty() {
             return Err(AppError::BadRequest(
                 "agent_ids cannot be empty".to_string(),
@@ -208,12 +222,23 @@ impl<'a> AgentService<'a> {
         let deployment = self
             .state
             .deployment_manager
-            .deploy_agents_multi(agents, req.provider, req.region)
+            .deploy_agents_multi(agents, req.provider, req.region, railway_api_key)
             .await
             .map_err(AppError::Internal)?;
 
         Ok(deployment)
     }
+}
+
+fn sanitize_optional_secret(value: Option<String>) -> Option<String> {
+    value.and_then(|token| {
+        let trimmed = token.trim();
+        if trimmed.is_empty() {
+            None
+        } else {
+            Some(trimmed.to_string())
+        }
+    })
 }
 
 fn apply_openclaw_telegram_settings(

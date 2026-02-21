@@ -13,6 +13,7 @@ interface OrchestrationBuilderProps {
   mode: OrchestrationMode;
   agents: Agent[];
   teams: Team[];
+  railwayApiKey: string;
   onModeChange: (mode: OrchestrationMode) => void;
   onSuccess: () => Promise<void> | void;
 }
@@ -66,11 +67,13 @@ const modeOptions: Array<{ label: string; value: OrchestrationMode }> = [
   { label: 'Create Team', value: 'team' },
   { label: 'Assign Agent', value: 'assignment' },
 ];
+const SUPPORTED_PROVIDER: CreateAgentRequest['provider'] = 'railway';
 
 export function OrchestrationBuilder({
   mode,
   agents,
   teams,
+  railwayApiKey,
   onModeChange,
   onSuccess,
 }: OrchestrationBuilderProps) {
@@ -92,11 +95,13 @@ export function OrchestrationBuilder({
 
   const selectableAgents = useMemo(() => agents, [agents]);
   const selectableTeams = useMemo(() => teams, [teams]);
+  const hasRailwayApiKey = railwayApiKey.trim().length > 0;
+  const requiresModelApiKey = singleDraft.model_provider !== 'openclaw';
 
   const resetNotice = () => setNotice(null);
 
   const submitSingle = async () => {
-    const errors = validateSingle(singleDraft);
+    const errors = validateSingle(singleDraft, hasRailwayApiKey);
     setSingleErrors(errors);
     if (Object.keys(errors).length > 0) {
       setNotice({ tone: 'error', message: 'Fix field errors before deploying.' });
@@ -106,8 +111,9 @@ export function OrchestrationBuilder({
     const payload: CreateAgentRequest = {
       name: singleDraft.name.trim(),
       role: singleDraft.role,
-      provider: singleDraft.provider,
-      region: singleDraft.region.trim() || undefined,
+      provider: SUPPORTED_PROVIDER,
+      railway_api_key: railwayApiKey.trim() || undefined,
+      region: SUPPORTED_PROVIDER === 'railway' ? undefined : singleDraft.region.trim() || undefined,
       team_id: singleDraft.team_id.trim() || undefined,
       runtime: singleDraft.runtime,
       model_provider: singleDraft.model_provider,
@@ -142,7 +148,7 @@ export function OrchestrationBuilder({
   };
 
   const submitMulti = async () => {
-    const errors = validateMulti(multiDraft);
+    const errors = validateMulti(multiDraft, hasRailwayApiKey);
     setMultiErrors(errors);
     if (Object.keys(errors).length > 0) {
       setNotice({ tone: 'error', message: 'Fix field errors before multi-deploy.' });
@@ -153,8 +159,10 @@ export function OrchestrationBuilder({
     try {
       await api.deployAgentsMulti({
         agent_ids: multiDraft.selectedAgents,
-        provider: multiDraft.provider,
-        region: multiDraft.region.trim() || undefined,
+        provider: SUPPORTED_PROVIDER,
+        railway_api_key: railwayApiKey.trim() || undefined,
+        region:
+          SUPPORTED_PROVIDER === 'railway' ? undefined : multiDraft.region.trim() || undefined,
         telegram_settings: buildTelegramSettings(multiDraft),
       });
       await onSuccess();
@@ -302,21 +310,10 @@ export function OrchestrationBuilder({
             </Field>
           </div>
           <div className="grid gap-3 md:grid-cols-2">
-            <Field label="Provider" error={singleErrors.provider}>
-              <select
-                value={singleDraft.provider}
-                onChange={(event) =>
-                  setSingleDraft({
-                    ...singleDraft,
-                    provider: event.target.value as SingleDraft['provider'],
-                  })
-                }
-                className="input-dark"
-              >
-                <option value="flyio">Fly.io</option>
-                <option value="railway">Railway</option>
-                <option value="aws">AWS</option>
-              </select>
+            <Field label="Cloud provider" error={singleErrors.provider}>
+              <div className="input-dark flex items-center font-medium text-foreground">
+                Railway
+              </div>
             </Field>
             <Field label="Runtime" error={singleErrors.runtime}>
               <select
@@ -336,17 +333,26 @@ export function OrchestrationBuilder({
               </select>
             </Field>
           </div>
+          <Field label="Railway API token" error={singleErrors.railway_api_key}>
+            <div className="input-dark flex items-center text-muted-foreground">
+              {hasRailwayApiKey
+                ? 'Loaded from dashboard credentials'
+                : 'Missing. Add it in Deployment Credentials above.'}
+            </div>
+          </Field>
 
           <div className="grid gap-3 md:grid-cols-2">
             <Field label="Model provider" error={singleErrors.model_provider}>
               <select
                 value={singleDraft.model_provider}
-                onChange={(event) =>
+                onChange={(event) => {
+                  const nextProvider = event.target.value as SingleDraft['model_provider'];
                   setSingleDraft({
                     ...singleDraft,
-                    model_provider: event.target.value as SingleDraft['model_provider'],
-                  })
-                }
+                    model_provider: nextProvider,
+                    model_api_key: nextProvider === 'openclaw' ? '' : singleDraft.model_api_key,
+                  });
+                }}
                 className="input-dark"
               >
                 <option value="openclaw">OpenClaw</option>
@@ -356,14 +362,20 @@ export function OrchestrationBuilder({
               </select>
             </Field>
             <Field label="Model API key" error={singleErrors.model_api_key}>
-              <input
-                type="password"
-                value={singleDraft.model_api_key}
-                onChange={(event) =>
-                  setSingleDraft({ ...singleDraft, model_api_key: event.target.value })
-                }
-                className="input-dark"
-              />
+              {requiresModelApiKey ? (
+                <input
+                  type="password"
+                  value={singleDraft.model_api_key}
+                  onChange={(event) =>
+                    setSingleDraft({ ...singleDraft, model_api_key: event.target.value })
+                  }
+                  className="input-dark"
+                />
+              ) : (
+                <div className="input-dark flex items-center text-muted-foreground">
+                  Not required for OpenClaw
+                </div>
+              )}
             </Field>
           </div>
 
@@ -408,14 +420,18 @@ export function OrchestrationBuilder({
           />
 
           <div className="grid gap-3 md:grid-cols-2">
-            <Field label="Region" error={singleErrors.region}>
-              <input
-                type="text"
-                value={singleDraft.region}
-                onChange={(event) => setSingleDraft({ ...singleDraft, region: event.target.value })}
-                className="input-dark"
-              />
-            </Field>
+            {SUPPORTED_PROVIDER !== 'railway' ? (
+              <Field label="Region" error={singleErrors.region}>
+                <input
+                  type="text"
+                  value={singleDraft.region}
+                  onChange={(event) =>
+                    setSingleDraft({ ...singleDraft, region: event.target.value })
+                  }
+                  className="input-dark"
+                />
+              </Field>
+            ) : null}
             <Field label="Team ID" error={singleErrors.team_id}>
               <input
                 type="text"
@@ -512,31 +528,29 @@ export function OrchestrationBuilder({
           </Field>
 
           <div className="grid gap-3 md:grid-cols-2">
-            <Field label="Provider" error={multiErrors.provider}>
-              <select
-                value={multiDraft.provider}
-                onChange={(event) =>
-                  setMultiDraft({
-                    ...multiDraft,
-                    provider: event.target.value as MultiDraft['provider'],
-                  })
-                }
-                className="input-dark"
-              >
-                <option value="flyio">Fly.io</option>
-                <option value="railway">Railway</option>
-                <option value="aws">AWS</option>
-              </select>
+            <Field label="Cloud provider" error={multiErrors.provider}>
+              <div className="input-dark flex items-center font-medium text-foreground">
+                Railway
+              </div>
             </Field>
-            <Field label="Region" error={multiErrors.region}>
-              <input
-                type="text"
-                value={multiDraft.region}
-                onChange={(event) => setMultiDraft({ ...multiDraft, region: event.target.value })}
-                className="input-dark"
-              />
-            </Field>
+            {SUPPORTED_PROVIDER !== 'railway' ? (
+              <Field label="Region" error={multiErrors.region}>
+                <input
+                  type="text"
+                  value={multiDraft.region}
+                  onChange={(event) => setMultiDraft({ ...multiDraft, region: event.target.value })}
+                  className="input-dark"
+                />
+              </Field>
+            ) : null}
           </div>
+          <Field label="Railway API token" error={multiErrors.railway_api_key}>
+            <div className="input-dark flex items-center text-muted-foreground">
+              {hasRailwayApiKey
+                ? 'Loaded from dashboard credentials'
+                : 'Missing. Add it in Deployment Credentials above.'}
+            </div>
+          </Field>
 
           <TelegramSettingsFields
             draft={multiDraft}
@@ -869,7 +883,7 @@ function createSingleDraft(): SingleDraft {
     responsibility: '',
     emoji: '',
     role: 'slave',
-    provider: 'flyio',
+    provider: SUPPORTED_PROVIDER,
     region: '',
     team_id: '',
     runtime: 'openclaw',
@@ -887,7 +901,7 @@ function createSingleDraft(): SingleDraft {
 function createMultiDraft(): MultiDraft {
   return {
     selectedAgents: [],
-    provider: 'flyio',
+    provider: SUPPORTED_PROVIDER,
     region: '',
     ...createTelegramDraft(),
   };
@@ -903,7 +917,7 @@ function createTeamDraft(): TeamDraft {
   };
 }
 
-function validateSingle(draft: SingleDraft): FieldErrors {
+function validateSingle(draft: SingleDraft, hasRailwayApiKey: boolean): FieldErrors {
   const errors: FieldErrors = {};
 
   if (!draft.name.trim()) {
@@ -914,6 +928,10 @@ function validateSingle(draft: SingleDraft): FieldErrors {
     errors.model_api_key = 'Model API key is required for non-OpenClaw providers.';
   }
 
+  if (!hasRailwayApiKey) {
+    errors.railway_api_key = 'Railway API token is required for deployment.';
+  }
+
   if (draft.runtime === 'openclaw') {
     Object.assign(errors, validateTelegramDraft(draft));
   }
@@ -921,11 +939,15 @@ function validateSingle(draft: SingleDraft): FieldErrors {
   return errors;
 }
 
-function validateMulti(draft: MultiDraft): FieldErrors {
+function validateMulti(draft: MultiDraft, hasRailwayApiKey: boolean): FieldErrors {
   const errors: FieldErrors = {};
 
   if (draft.selectedAgents.length === 0) {
     errors.selectedAgents = 'Select at least one agent.';
+  }
+
+  if (!hasRailwayApiKey) {
+    errors.railway_api_key = 'Railway API token is required for deployment.';
   }
 
   Object.assign(errors, validateTelegramDraft(draft));

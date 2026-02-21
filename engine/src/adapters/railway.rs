@@ -19,10 +19,14 @@ impl RailwayAdapter {
             .context("Railway API key not configured")?
             .clone();
 
-        Ok(Self {
+        Ok(Self::from_api_key(api_key))
+    }
+
+    pub fn from_api_key(api_key: String) -> Self {
+        Self {
             client: Client::new(),
             api_key,
-        })
+        }
     }
 }
 

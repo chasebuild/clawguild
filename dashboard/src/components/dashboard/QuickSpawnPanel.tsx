@@ -40,6 +40,7 @@ interface QuickSpawnPanelProps {
   errors: FieldErrors;
   submitting: boolean;
   notice: NoticeState | null;
+  hasRailwayApiKey: boolean;
   activeTemplate: SpawnTemplateId;
   templates: SpawnTemplate[];
   focusSignal: number;
@@ -54,6 +55,7 @@ export function QuickSpawnPanel({
   errors,
   submitting,
   notice,
+  hasRailwayApiKey,
   activeTemplate,
   templates,
   focusSignal,
@@ -65,6 +67,8 @@ export function QuickSpawnPanel({
   const [showAdvanced, setShowAdvanced] = useState(false);
   const nameInputRef = useRef<HTMLInputElement>(null);
   const activeTemplateData = templates.find((template) => template.id === activeTemplate);
+  const isRailwayProvider = draft.provider === 'railway';
+  const requiresModelApiKey = draft.model_provider !== 'openclaw';
   const nameSuggestions = templates
     .map((template) => template.defaults.namePrefix)
     .filter(Boolean)
@@ -73,10 +77,19 @@ export function QuickSpawnPanel({
   const setupChecklist = [
     { label: 'Pick a template', done: Boolean(activeTemplateData) },
     { label: 'Set a unique agent name', done: draft.name.trim().length > 0 },
-    { label: 'Choose provider and runtime', done: Boolean(draft.provider && draft.runtime) },
+    { label: 'Runtime profile selected', done: Boolean(draft.runtime) },
+    requiresModelApiKey
+      ? {
+          label: `Add ${draft.model_provider} model API key`,
+          done: draft.model_api_key.trim().length > 0,
+        }
+      : {
+          label: 'OpenClaw model key not required',
+          done: true,
+        },
     {
-      label: `Add model credentials for ${draft.model_provider}`,
-      done: draft.model_provider === 'openclaw' || draft.model_api_key.trim().length > 0,
+      label: 'Provide Railway API token in dashboard credentials',
+      done: hasRailwayApiKey,
     },
     {
       label: 'If Telegram is enabled, add bot token',
@@ -206,18 +219,12 @@ export function QuickSpawnPanel({
         </div>
 
         <div className="grid gap-3 md:grid-cols-2">
-          <Field label="Provider" error={errors.provider}>
-            <select
-              value={draft.provider}
-              onChange={(event) =>
-                setField('provider', event.target.value as QuickSpawnDraft['provider'])
-              }
-              className="input-dark"
-            >
-              <option value="flyio">Fly.io</option>
-              <option value="railway">Railway</option>
-              <option value="aws">AWS</option>
-            </select>
+          <Field
+            label="Cloud provider"
+            error={errors.provider}
+            hint="Only Railway is supported in this environment."
+          >
+            <div className="input-dark flex items-center font-medium text-foreground">Railway</div>
           </Field>
           <Field label="Runtime" error={errors.runtime}>
             <select
@@ -234,14 +241,26 @@ export function QuickSpawnPanel({
             </select>
           </Field>
         </div>
+        <Field label="Railway API token" error={errors.railway_api_key}>
+          <div className="input-dark flex items-center text-muted-foreground">
+            {hasRailwayApiKey
+              ? 'Loaded from dashboard credentials'
+              : 'Missing. Add it in Deployment Credentials above.'}
+          </div>
+        </Field>
 
         <div className="grid gap-3 md:grid-cols-2">
           <Field label="Model provider" error={errors.model_provider}>
             <select
               value={draft.model_provider}
-              onChange={(event) =>
-                setField('model_provider', event.target.value as QuickSpawnDraft['model_provider'])
-              }
+              onChange={(event) => {
+                const nextProvider = event.target.value as QuickSpawnDraft['model_provider'];
+                onDraftChange({
+                  ...draft,
+                  model_provider: nextProvider,
+                  model_api_key: nextProvider === 'openclaw' ? '' : draft.model_api_key,
+                });
+              }}
               className="input-dark"
             >
               <option value="openclaw">OpenClaw</option>
@@ -250,14 +269,28 @@ export function QuickSpawnPanel({
               <option value="byom">Bring your own model</option>
             </select>
           </Field>
-          <Field label="Model API key" error={errors.model_api_key}>
-            <input
-              type="password"
-              value={draft.model_api_key}
-              onChange={(event) => setField('model_api_key', event.target.value)}
-              className="input-dark"
-              placeholder="sk-..."
-            />
+          <Field
+            label="Model API key"
+            error={errors.model_api_key}
+            hint={
+              requiresModelApiKey
+                ? 'Required for Anthropic, OpenAI, and BYOM.'
+                : 'OpenClaw runtime does not require a model API key.'
+            }
+          >
+            {requiresModelApiKey ? (
+              <input
+                type="password"
+                value={draft.model_api_key}
+                onChange={(event) => setField('model_api_key', event.target.value)}
+                className="input-dark"
+                placeholder="sk-..."
+              />
+            ) : (
+              <div className="input-dark flex items-center text-muted-foreground">
+                Not required for OpenClaw
+              </div>
+            )}
           </Field>
         </div>
 
@@ -410,16 +443,18 @@ export function QuickSpawnPanel({
                 <option value="master">Master</option>
               </select>
             </Field>
-            <Field label="Region" error={errors.region}>
-              <input
-                type="text"
-                list="quickspawn-region-suggestions"
-                value={draft.region}
-                onChange={(event) => setField('region', event.target.value)}
-                className="input-dark"
-                placeholder="iad"
-              />
-            </Field>
+            {!isRailwayProvider ? (
+              <Field label="Region" error={errors.region}>
+                <input
+                  type="text"
+                  list="quickspawn-region-suggestions"
+                  value={draft.region}
+                  onChange={(event) => setField('region', event.target.value)}
+                  className="input-dark"
+                  placeholder="iad"
+                />
+              </Field>
+            ) : null}
             <Field label="Team ID" error={errors.team_id}>
               <input
                 type="text"
